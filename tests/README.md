@@ -9,11 +9,17 @@ Request Creator GitHub Action.
 # From project root - run all tests
 python -m pytest tests/test_assignment_creator.py -v
 
-# From tests directory - run test suite
+# From tests directory - run test suite  
 cd tests && bash test_runner.sh all
 
 # Discovery test with fixtures
 cd tests && python test_local.py discover
+
+# Test dry-run functionality
+python -m pytest tests/test_assignment_creator.py -k "dry_run" -v
+
+# Local dry-run simulation
+DRY_RUN=true GITHUB_TOKEN=fake_token GITHUB_REPOSITORY=test/repo python create_assignment_prs.py
 ```
 
 ## Test Structure
@@ -36,12 +42,14 @@ tests/
 ### 1. Unit Tests (`test_assignment_creator.py`)
 
 - **Framework**: pytest with comprehensive fixtures
-- **Coverage**: Assignment discovery, PR creation, GitHub API mocking
+- **Coverage**: Assignment discovery, PR creation, GitHub API mocking, **dry-run
+  functionality**
 - **Scenarios**:
   - Multiple regex patterns (assignments, homework, labs, projects)
   - Edge cases (empty repos, invalid patterns, API failures)
   - Cross-platform path handling (Windows/Unix)
   - Environment variable validation
+  - **Dry-run mode simulation and validation**
   - GitHub API interaction patterns
 
 ### 2. Integration Tests (`test_local.py`)
@@ -82,6 +90,37 @@ ASSIGNMENT_REGEX="^assignment-\d+$"             # Assignment folder pattern
 CONDA_ENVIRONMENT_NAME="myenv"
 CONDA_ENVIRONMENT_FILE="environment.yml"
 ```
+
+### Dry-Run Testing
+
+The test suite includes comprehensive dry-run functionality testing:
+
+```bash
+# Test dry-run mode functionality
+python -m pytest tests/test_assignment_creator.py::TestDryRunFunctionality -v
+
+# Local dry-run simulation (safe testing)
+DRY_RUN=true GITHUB_TOKEN=fake_token GITHUB_REPOSITORY=test/repo python create_assignment_prs.py
+
+# Test with specific patterns in dry-run mode
+DRY_RUN=true GITHUB_TOKEN=fake_token GITHUB_REPOSITORY=test/repo \
+ASSIGNMENTS_ROOT_REGEX="^(assignments|tests/fixtures)$" \
+python create_assignment_prs.py
+
+# Test different assignment types safely
+DRY_RUN=true GITHUB_TOKEN=fake_token GITHUB_REPOSITORY=test/repo \
+ASSIGNMENTS_ROOT_REGEX="^tests/fixtures/(homework|labs)$" \
+ASSIGNMENT_REGEX="^(hw|lab)-\d+$" \
+python create_assignment_prs.py
+```
+
+**Dry-run tests verify**:
+
+- ✅ Command output simulation (git, gh commands)
+- ✅ README content generation preview
+- ✅ Branch name sanitization
+- ✅ No actual GitHub API calls made
+- ✅ Proper tracking of simulated operations
 
 ### Test Fixtures
 

@@ -4,13 +4,20 @@
 # To use this example:
 # 1. Copy this file to .github/workflows/ in your repository
 # 2. Modify the parameters to match your assignment structure
-# 3. Ensure your repository has assignments in the specified structure
+# 3. Test with dry-run mode first (set dry-run: true)
+# 4. Ensure your repository has assignments in the specified structure
 
 name: Assignment Pull Request Example
 on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      dry-run:
+        description: "Enable dry-run mode (preview only)"
+        type: boolean
+        required: false
+        default: true
 
 jobs:
   create-assignment-prs:
@@ -30,6 +37,7 @@ jobs:
           assignments-root-regex: "^assignments$"
           assignment-regex: '^assignment-\d+$'
           default-branch: "main"
+          dry-run: ${{ inputs.dry-run || true }} # Default to dry-run for safety
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Display results

@@ -402,6 +402,79 @@ def run_integration_tests():
     return assignments
 
 
+class TestDryRunFunctionality(unittest.TestCase):
+    """Test cases for dry-run functionality."""
+
+    @patch.dict(os.environ, {
+        'GITHUB_TOKEN': 'fake_token',
+        'GITHUB_REPOSITORY': 'test/repo',
+        'DRY_RUN': 'true',
+        'ASSIGNMENTS_ROOT_REGEX': r'^(assignments|tests/fixtures)$'
+    })
+    def test_dry_run_initialization(self):
+        """Test that dry-run mode initializes correctly without GitHub API."""
+        # Import here to ensure environment variables are set
+        import sys
+        sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+        from create_assignment_prs import AssignmentPRCreator
+        
+        creator = AssignmentPRCreator()
+        
+        # Verify dry-run mode is enabled
+        self.assertTrue(creator.dry_run)
+        
+        # Verify GitHub API objects are None in dry-run mode
+        self.assertIsNone(creator.github)
+        self.assertIsNone(creator.repo)
+        
+        # Verify other attributes are set correctly
+        self.assertEqual(creator.repository_name, 'test/repo')
+        self.assertEqual(creator.default_branch, 'main')
+
+    @patch.dict(os.environ, {
+        'GITHUB_TOKEN': 'fake_token', 
+        'GITHUB_REPOSITORY': 'test/repo',
+        'DRY_RUN': 'true'
+    })
+    def test_simulate_operations(self):
+        """Test that dry-run mode simulates operations correctly."""
+        import sys
+        sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+        from create_assignment_prs import AssignmentPRCreator
+        
+        creator = AssignmentPRCreator()
+        
+        # Test branch simulation
+        result = creator.simulate_branch_creation('test-branch')
+        self.assertTrue(result)
+        self.assertIn('test-branch', creator.created_branches)
+        
+        # Test README simulation  
+        result = creator.simulate_readme_creation('test/path', 'test-branch')
+        self.assertTrue(result)
+        
+        # Test PR simulation
+        result = creator.simulate_pull_request_creation('test/path', 'test-branch')
+        self.assertTrue(result)
+        self.assertEqual(len(creator.created_pull_requests), 1)
+        self.assertEqual(creator.created_pull_requests[0], '#1')
+
+    @patch.dict(os.environ, {
+        'GITHUB_TOKEN': 'fake_token',
+        'GITHUB_REPOSITORY': 'test/repo', 
+        'DRY_RUN': 'false'
+    })
+    def test_dry_run_disabled(self):
+        """Test that dry-run mode can be disabled."""
+        import sys
+        sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+        
+        # This should fail because we have fake credentials when dry-run is off
+        with self.assertRaises(Exception):
+            from create_assignment_prs import AssignmentPRCreator
+            AssignmentPRCreator()
+
+
 if __name__ == "__main__":
     # Run unit tests
     print("Running Unit Tests")

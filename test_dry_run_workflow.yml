@@ -1,0 +1,28 @@
+# Test workflow to verify dry-run functionality
+name: Test Dry Run
+on:
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: "Enable dry-run mode"
+        type: boolean
+        required: false
+        default: true
+
+jobs:
+  test-dry-run:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Test dry-run mode
+        uses: ./
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          dry-run: ${{ inputs.dry-run }}
+          assignments-root-regex: "^(assignments|tests/fixtures)$"

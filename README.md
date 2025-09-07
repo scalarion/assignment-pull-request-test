@@ -10,6 +10,7 @@ requests with README files for educational repositories.
 - 📝 **README Generation**: Template README.md files for each assignment
 - 🔄 **Pull Request Creation**: Automated PRs for assignment review
 - 🛡️ **Safe Operation**: Only creates branches/PRs when they don't already exist
+- 🏃 **Dry-Run Mode**: Preview operations without making actual changes
 
 ## Quick Start
 
@@ -43,6 +44,7 @@ jobs:
 | `assignment-regex`       | Regex pattern to match individual assignment folders | No       | `^assignment-\\d+$`           |
 | `default-branch`         | Default branch to create pull requests against       | No       | `main`                        |
 | `github-token`           | GitHub token for API access                          | Yes      | `${{ secrets.GITHUB_TOKEN }}` |
+| `dry-run`                | Simulate operations without making actual changes    | No       | `false`                       |
 
 ### Output Parameters
 
@@ -50,6 +52,84 @@ jobs:
 | ----------------------- | ------------------------------------------ |
 | `created-branches`      | JSON array of branch names created         |
 | `created-pull-requests` | JSON array of pull request numbers created |
+
+## Dry-Run Mode
+
+The action supports a dry-run mode that simulates all operations without making
+actual changes to your repository. This is perfect for:
+
+- 🧪 **Testing configurations** before applying them
+- 🔍 **Previewing what changes** would be made
+- 📚 **Learning git commands** the action would execute
+- 🐛 **Debugging regex patterns** and directory structures
+
+### Basic Dry-Run Example
+
+```yaml
+name: Preview Assignment Setup
+on:
+    workflow_dispatch:
+        inputs:
+            dry-run:
+                description: "Enable dry-run mode"
+                type: boolean
+                default: true
+
+jobs:
+    preview-assignments:
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read # Reduced permissions for dry-run
+        steps:
+            - uses: actions/checkout@v4
+            - uses: majikmate/assignment-pull-request@v1
+              with:
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+                  dry-run: ${{ inputs.dry-run }}
+```
+
+### Dry-Run Output
+
+When dry-run mode is enabled, the action outputs:
+
+```bash
+🏃 DRY RUN MODE: Simulating operations without making actual changes
+
+[DRY RUN] Would create branch with command:
+  git checkout -b assignments-assignment-1 main
+  git push -u origin assignments-assignment-1
+
+[DRY RUN] Would create README.md at assignments/assignment-1/README.md
+[DRY RUN] Would commit with commands:
+  git checkout assignments-assignment-1
+  mkdir -p assignments/assignment-1
+  echo '[content]' > assignments/assignment-1/README.md
+  git add assignments/assignment-1/README.md
+  git commit -m 'Add README for assignment assignments/assignment-1'
+  git push origin assignments-assignment-1
+
+[DRY RUN] Would create pull request with command:
+  gh pr create \
+    --title 'Assignment: Assignments - Assignment-1' \
+    --body '[PR description]' \
+    --head assignments-assignment-1 \
+    --base main
+
+[DRY RUN] Simulated pull request #1: Assignment: Assignments - Assignment-1
+```
+
+### Local Dry-Run Testing
+
+```bash
+# Test with dry-run mode enabled
+DRY_RUN=true GITHUB_TOKEN=fake_token GITHUB_REPOSITORY=owner/repo python create_assignment_prs.py
+
+# Test different patterns
+DRY_RUN=true GITHUB_TOKEN=fake_token GITHUB_REPOSITORY=owner/repo \
+ASSIGNMENTS_ROOT_REGEX="^(assignments|homework)$" \
+ASSIGNMENT_REGEX="^(assignment|hw)-\d+$" \
+python create_assignment_prs.py
+```
 
 ## Complete Configuration Example
 
@@ -76,6 +156,11 @@ on:
                 description: "Default branch for pull requests"
                 required: false
                 default: "main"
+            dry-run:
+                description: "Enable dry-run mode (preview only)"
+                type: boolean
+                required: false
+                default: false
 
 jobs:
     create-assignment-prs:
@@ -98,6 +183,7 @@ jobs:
                   assignments-root-regex: ${{ github.event.inputs.assignments-root-regex || '^(assignments|homework|labs)$' }}
                   assignment-regex: ${{ github.event.inputs.assignment-regex || '^(assignment|hw|lab)-\d+$' }}
                   default-branch: ${{ github.event.inputs.default-branch || 'main' }}
+                  dry-run: ${{ github.event.inputs.dry-run || false }}
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Display results
@@ -242,6 +328,9 @@ jobs:
 git clone https://github.com/majikmate/assignment-pull-request.git
 cd assignment-pull-request
 
+# Test dry-run mode (recommended for initial testing)
+DRY_RUN=true GITHUB_TOKEN=fake_token GITHUB_REPOSITORY=owner/repo python create_assignment_prs.py
+
 # Quick test - discover assignments using test fixtures
 cd tests && python test_local.py discover
 
@@ -251,7 +340,7 @@ cd tests && python test_local.py sanitize "week-1/assignment-1"
 # Run full local integration test
 cd tests && python test_local.py
 
-# Run comprehensive unit tests
+# Run comprehensive unit tests (includes dry-run tests)
 python -m pytest tests/test_assignment_creator.py -v
 
 # Run all tests with the test runner
@@ -267,6 +356,7 @@ The repository includes a comprehensive test suite covering:
   - Branch name sanitization
   - Regex pattern validation
   - Environment configuration
+  - **Dry-run functionality testing**
   - GitHub API interaction patterns
 
 - **Integration Tests**: `tests/test_local.py`
@@ -339,6 +429,30 @@ python -c "import re; print(re.match(r'^assignment-\d+$', 'assignment-1'))"
 above
 
 **Pattern issues**: Test patterns with the manual workflow dispatch to debug
+
+**Testing configurations**: Use dry-run mode to preview operations:
+
+```bash
+# Test your configuration safely
+DRY_RUN=true GITHUB_TOKEN=fake_token GITHUB_REPOSITORY=owner/repo \
+ASSIGNMENTS_ROOT_REGEX="your-pattern" \
+ASSIGNMENT_REGEX="your-assignment-pattern" \
+python create_assignment_prs.py
+```
+
+**Validating regex patterns**: Test with dry-run and check the discovered
+assignments:
+
+```yaml
+# Add this to your workflow for testing
+- name: Test Configuration (Dry Run)
+  uses: majikmate/assignment-pull-request@v1
+  with:
+      dry-run: true
+      assignments-root-regex: "^your-pattern$"
+      assignment-regex: "^your-assignment-pattern$"
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+```
 
 ---
 
