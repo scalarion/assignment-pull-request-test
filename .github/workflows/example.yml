@@ -1,0 +1,29 @@
+name: Assignment Pull Request Example
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  create-assignment-prs:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Create assignment pull requests
+        id: create-prs
+        uses: ./
+        with:
+          assignments-folder: 'assignments'
+          assignment-regex: '^assignment-\d+$'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Display results
+        run: |
+          echo "Created branches: ${{ steps.create-prs.outputs.created-branches }}"
+          echo "Created pull requests: ${{ steps.create-prs.outputs.created-pull-requests }}"
