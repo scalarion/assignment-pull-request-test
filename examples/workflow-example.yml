@@ -1,7 +1,15 @@
+# Example workflow for using the Assignment Pull Request Creator
+#
+# This file shows how to use the action in your own repository.
+# To use this example:
+# 1. Copy this file to .github/workflows/ in your repository
+# 2. Modify the parameters to match your assignment structure
+# 3. Ensure your repository has assignments in the specified structure
+
 name: Assignment Pull Request Example
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -10,19 +18,20 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        
+
       - name: Create assignment pull requests
         id: create-prs
-        uses: ./
+        uses: majikmate/assignment-pull-request@main # or specific version tag
         with:
-          assignments-folder: 'assignments'
+          assignments-root-regex: "^assignments$"
           assignment-regex: '^assignment-\d+$'
+          default-branch: "main"
           github-token: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Display results
         run: |
           echo "Created branches: ${{ steps.create-prs.outputs.created-branches }}"

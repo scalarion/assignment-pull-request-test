@@ -85,14 +85,18 @@ CONDA_ENVIRONMENT_FILE="environment.yml"
 
 ### Test Fixtures
 
-The `fixtures/` directory contains realistic assignment structures for testing
-different scenarios:
+The `fixtures/` directory contains realistic assignment structures used for all
+testing scenarios:
 
 - **`assignments/`**: Standard structure (`assignment-1`, `assignment-2`,
   `week-3/assignment-3`)
 - **`homework/`**: Homework pattern (`hw-1`, `hw-2`, `hw-3`)
 - **`labs/`**: Lab pattern (`lab-1`, `lab-2`)
 - **`projects/`**: Project pattern (`project-1`, `project-2`)
+
+All integration tests use these fixtures exclusively, providing comprehensive
+test coverage without requiring external dependencies or cluttering the
+repository root.
 
 ### Pattern Testing Examples
 

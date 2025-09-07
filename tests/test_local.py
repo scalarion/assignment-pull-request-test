@@ -79,10 +79,10 @@ def test_assignment_scanning():
     print(f"Root regex: {assignments_root_regex}")
     print(f"Assignment regex: {assignment_regex}")
     
-    # Test assignment scanning from parent directory (where actual assignments are)
-    workspace_root = Path("..").resolve()
+    # Test assignment scanning using fixtures only
+    fixtures_root = Path("fixtures")
     assignments = find_assignments_with_root_pattern(
-        workspace_root, 
+        fixtures_root, 
         assignments_root_regex, 
         assignment_regex
     )
@@ -95,8 +95,7 @@ def test_assignment_scanning():
         branch_name = sanitize_branch_name(assignment)
         print(f"    -> branch: {branch_name}")
     
-    # Also test with fixtures if available
-    fixtures_root = Path("fixtures")
+    # Test with fixtures using relative paths (for display purposes)
     if fixtures_root.exists():
         print(f"\nTesting with fixtures:")
         fixture_assignments = find_assignments_with_root_pattern(
@@ -133,9 +132,9 @@ def main():
         command = sys.argv[1].lower()
         
         if command == "discover":
-            # Just run discovery
+            # Just run discovery using fixtures
             assignments = find_assignments_with_root_pattern(
-                Path("..").resolve(),
+                Path("fixtures"),
                 os.environ.get('ASSIGNMENTS_ROOT_REGEX', '^assignments$'),
                 os.environ.get('ASSIGNMENT_REGEX', r'^assignment-\d+$')
             )

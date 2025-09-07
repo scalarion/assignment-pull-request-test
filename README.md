@@ -242,20 +242,20 @@ jobs:
 git clone https://github.com/majikmate/assignment-pull-request.git
 cd assignment-pull-request
 
-# Quick test - discover assignments
+# Quick test - discover assignments using test fixtures
 cd tests && python test_local.py discover
 
 # Quick test - test branch sanitization
 cd tests && python test_local.py sanitize "week-1/assignment-1"
 
-# Run full local test suite
+# Run full local integration test
 cd tests && python test_local.py
 
 # Run comprehensive unit tests
 python -m pytest tests/test_assignment_creator.py -v
 
-# Run integration tests
-cd tests && python test_assignment_creator.py
+# Run all tests with the test runner
+cd tests && bash test_runner.sh all
 ```
 
 ### Test Suite
@@ -263,22 +263,27 @@ cd tests && python test_assignment_creator.py
 The repository includes a comprehensive test suite covering:
 
 - **Unit Tests**: `tests/test_assignment_creator.py`
-  - Assignment discovery logic
+  - Assignment discovery logic with mocked file systems
   - Branch name sanitization
   - Regex pattern validation
   - Environment configuration
+  - GitHub API interaction patterns
 
-- **Local Integration Tests**: `test_local.py`
-  - Quick assignment discovery
-  - Branch name sanitization
-  - Configuration testing
+- **Integration Tests**: `tests/test_local.py`
+  - End-to-end assignment discovery using realistic test fixtures
+  - Branch name sanitization with real paths
+  - Environment variable configuration
+  - Cross-platform path handling
 
-- **GitHub Actions Integration Tests**: `.github/workflows/test-suite.yml`
-  - Code quality checks (Black, Flake8, MyPy)
+- **Test Fixtures**: `tests/fixtures/`
+  - Multiple assignment structures (assignments, homework, labs, projects)
+  - Realistic directory hierarchies and naming patterns
+  - Edge cases and nested structures
+
+- **GitHub Actions Integration**: `.github/workflows/test-suite.yml`
   - Cross-platform testing (Ubuntu, Windows, macOS)
-  - Performance testing with large structures
-  - Security scanning
-  - Full action integration testing
+  - Code quality checks (Black, Flake8, MyPy)
+  - Security and performance validation
 
 ### Test Commands
 
@@ -301,6 +306,19 @@ cd tests && ASSIGNMENT_REGEX='^hw-\d+$' bash test_runner.sh discovery
 ````
 
 ````
+```
+
+## Examples
+
+Complete usage examples are available in the `examples/` directory:
+
+- **`workflow-example.yml`**: Ready-to-use GitHub Actions workflow
+- **`README.md`**: Instructions for implementing the examples
+
+Copy the workflow example to `.github/workflows/` in your repository and customize the parameters to match your assignment structure.
+
+## Security
+
 ### Required Permissions
 
 ```yaml
