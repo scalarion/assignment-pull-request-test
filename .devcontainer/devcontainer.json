@@ -1,47 +1,52 @@
 {
-  "name": "Assignment Pull Request Creator",
-  "image": "ghcr.io/majikmate/classroom-codespace-image:latest",
-  
-  "features": {
-    "ghcr.io/devcontainers/features/github-cli:1": {}
-  },
+    "name": "Assignment Pull Request Creator",
+    "image": "ghcr.io/majikmate/classroom-codespace-image:latest",
 
-  "customizations": {
-    "vscode": {
-      "extensions": [
-        "ms-python.python",
-        "ms-python.pylint",
-        "ms-python.flake8",
-        "ms-python.black-formatter",
-        "GitHub.vscode-github-actions",
-        "redhat.vscode-yaml",
-        "ms-vscode.vscode-json"
-      ],
-      "settings": {
-        "python.defaultInterpreterPath": "/usr/local/bin/python",
-        "python.formatting.provider": "black",
-        "python.linting.enabled": true,
-        "python.linting.pylintEnabled": true,
-        "python.linting.flake8Enabled": true,
-        "files.associations": {
-          "*.yml": "yaml",
-          "*.yaml": "yaml"
-        },
-        "yaml.validate": true,
-        "yaml.format.enable": true
-      }
-    }
-  },
+    "features": {
+        "ghcr.io/devcontainers/features/github-cli:1": {}
+    },
 
-  "postCreateCommand": "pip install -r requirements.txt",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-python.python",
+                "ms-python.pylint",
+                "ms-python.flake8",
+                "ms-python.black-formatter",
+                "GitHub.vscode-github-actions",
+                "redhat.vscode-yaml",
+                "ms-vscode.vscode-json"
+            ],
+            "settings": {
+                "python.defaultInterpreterPath": "/opt/conda/envs/assignment-pr-creator/bin/python",
+                "python.formatting.provider": "black",
+                "python.linting.enabled": true,
+                "python.linting.pylintEnabled": true,
+                "python.linting.flake8Enabled": true,
+                "files.associations": {
+                    "*.yml": "yaml",
+                    "*.yaml": "yaml"
+                },
+                "yaml.validate": true,
+                "yaml.format.enable": true,
+                "python.terminal.activateEnvironment": true
+            }
+        }
+    },
 
-  "remoteUser": "vscode",
+    "postCreateCommand": [
+        "bash",
+        "-c",
+        "conda env create -f environment.yml && echo 'Conda environment created successfully!'"
+    ],
 
-  "mounts": [
-    "source=${localWorkspaceFolder}/.git,target=/workspaces/${localWorkspaceFolderBasename}/.git,type=bind,consistency=cached"
-  ],
+    "remoteUser": "vscode",
 
-  "forwardPorts": [],
+    "mounts": [
+        "source=${localWorkspaceFolder}/.git,target=/workspaces/${localWorkspaceFolderBasename}/.git,type=bind,consistency=cached"
+    ],
 
-  "portsAttributes": {}
+    "forwardPorts": [],
+
+    "portsAttributes": {}
 }
