@@ -11,6 +11,65 @@ requests with README files for educational repositories.
 - 🔄 **Pull Request Creation**: Automated PRs for assignment review
 - 🛡️ **Safe Operation**: Only creates branches/PRs when they don't already exist
 - 🏃 **Dry-Run Mode**: Preview operations without making actual changes
+- ⚡ **Fail-Fast Error Handling**: Immediate failure on GitHub API errors for
+  reliable workflows
+- 🌐 **Direct Remote Operations**: All changes are immediately pushed to remote
+  via GitHub API
+
+## Technical Implementation
+
+**🚀 All operations are performed directly on the remote repository via GitHub
+API:**
+
+- **Branch Creation**: Uses `repo.create_git_ref()` - branch immediately
+  available on remote
+- **File Creation**: Uses `repo.create_file()` - file and commit immediately
+  pushed to remote
+- **Pull Request Creation**: Uses `repo.create_pull()` - PR immediately
+  available on remote
+
+**No local git operations are involved.** The action does not clone the
+repository locally or use git commands. All changes are atomic operations
+performed directly against the GitHub repository through the REST API.
+
+## Behavior
+
+### Branch and Pull Request Logic
+
+This action implements smart logic to handle branch and pull request lifecycle:
+
+**Branch Creation**:
+
+- ✅ Creates a branch if no branch exists AND no pull request has ever existed
+  for that branch name
+- ❌ Does NOT recreate a branch if a pull request existed before (even if merged
+  and branch deleted)
+- ℹ️ This prevents recreating branches for completed assignments
+
+**Pull Request Creation**:
+
+- ✅ Creates README.md content first, then creates PR if NO pull request has
+  ever existed for that branch name
+- ❌ Skips if ANY pull request has ever existed (open, closed, or merged)
+- ❌ Skips if README creation doesn't result in changes compared to the default
+  branch
+- ℹ️ Ensures PRs always have meaningful content and prevents duplicates
+
+**Content Creation Process**:
+
+1. 📝 Creates README.md template in the assignment directory
+2. 🔍 Validates that the content creation resulted in changes
+3. 🔄 Creates pull request only if changes exist
+
+**Common Scenarios**:
+
+- 🆕 **New assignment**: Creates branch, README content, and PR
+- 🔄 **Existing branch, no PR history**: Creates README content and PR (if
+  changes)
+- ✅ **Completed assignment** (PR merged, branch deleted): Takes no action
+- 🔁 **Existing branch with PR history**: Takes no action (no new content/PR
+  created)
+- ⚠️ **README already exists**: May skip PR creation if no new changes detected
 
 ## Quick Start
 
@@ -130,6 +189,31 @@ ASSIGNMENTS_ROOT_REGEX="^(assignments|homework)$" \
 ASSIGNMENT_REGEX="^(assignment|hw)-\d+$" \
 python create_assignment_prs.py
 ```
+
+## Error Handling
+
+The action implements robust error handling for GitHub API operations:
+
+**⚠️ Fail-Fast Behavior**: If any GitHub API operation fails (branch creation,
+pull request operations, etc.), the action will immediately exit with a failure
+status rather than continuing. This ensures that:
+
+- **Workflow failures are immediate and clear** when GitHub operations encounter
+  issues
+- **No partial operations** are left in an inconsistent state
+- **Clear error messages** are displayed showing which operation failed
+- **GitHub Actions workflows fail appropriately** for proper CI/CD feedback
+
+**Common error scenarios that cause immediate failure**:
+
+- Authentication issues (invalid GitHub token)
+- Permission problems (insufficient repository access)
+- API rate limits exceeded
+- Network connectivity issues
+- Repository access restrictions
+
+**💡 Tip**: Always test with dry-run mode first to validate your configuration
+before running actual operations.
 
 ## Complete Configuration Example
 

@@ -34,6 +34,10 @@ class AssignmentPRCreator:
     3. Adding template README files to assignment directories
     4. Creating pull requests for assignment review and management
 
+    IMPORTANT: All operations are performed directly on the remote repository
+    via GitHub API. No local git operations are involved. Branches, commits,
+    and pull requests are immediately available on the remote repository.
+
     Environment Variables Required:
         GITHUB_TOKEN: GitHub personal access token with repository permissions
         GITHUB_REPOSITORY: Repository name in format "owner/repo"
@@ -146,7 +150,10 @@ class AssignmentPRCreator:
 
     def simulate_branch_creation(self, branch_name: str) -> bool:
         """
-        Simulate branch creation by outputting the git command.
+        Simulate branch creation by outputting equivalent git commands.
+        
+        NOTE: The actual implementation uses GitHub API, not git commands.
+        These commands show what the equivalent git operations would be.
 
         Args:
             branch_name: Name of the branch to simulate creating
@@ -157,12 +164,16 @@ class AssignmentPRCreator:
         print(f"[DRY RUN] Would create branch with command:")
         print(f"  git checkout -b {branch_name} {self.default_branch}")
         print(f"  git push -u origin {branch_name}")
+        print(f"  # Note: Actual implementation uses GitHub API directly")
         self.created_branches.append(branch_name)
         return True
 
     def simulate_readme_creation(self, assignment_path: str, branch_name: str) -> bool:
         """
-        Simulate README creation by outputting the file content and git commands.
+        Simulate README creation by outputting equivalent git commands.
+        
+        NOTE: The actual implementation uses GitHub API, not git commands.
+        These commands show what the equivalent git operations would be.
 
         Args:
             assignment_path: Relative path to assignment folder
@@ -197,17 +208,31 @@ Please add your submission guidelines here.
         print(readme_content)
         print("--- End README.md content ---")
         print(f"[DRY RUN] Would commit with commands:")
-        print(f"  git checkout {branch_name}")
-        print(f"  mkdir -p {assignment_path}")
-        print(f"  echo '[content]' > {readme_path}")
-        print(f"  git add {readme_path}")
-        print(f"  git commit -m 'Add README for assignment {assignment_path}'")
+        print(f"  # Check if README exists first")
+        print(f"  if [ -f {readme_path} ]; then")
+        print(f"    # README exists - augment it")
+        print(f"    echo '' >> {readme_path}")
+        print(f"    echo '---' >> {readme_path}")
+        print(f"    echo '' >> {readme_path}")
+        print(f"    echo '*This README was augmented by the Assignment Pull Request Creator action.*' >> {readme_path}")
+        print(f"    git add {readme_path}")
+        print(f"    git commit -m 'Augment README for assignment {assignment_path}'")
+        print(f"  else")
+        print(f"    # README doesn't exist - create it")
+        print(f"    git checkout {branch_name}")
+        print(f"    mkdir -p {assignment_path}")
+        print(f"    echo '[content]' > {readme_path}")
+        print(f"    git add {readme_path}")
+        print(f"    git commit -m 'Add README for assignment {assignment_path}'")
+        print(f"  fi")
         print(f"  git push origin {branch_name}")
+        print(f"  # Note: Actual implementation uses GitHub API directly")
         return True
 
     def simulate_pull_request_creation(self, assignment_path: str, branch_name: str) -> bool:
         """
         Simulate pull request creation by outputting the GitHub CLI command.
+        Assumes changes have already been validated before calling this method.
 
         Args:
             assignment_path: Relative path to assignment folder
@@ -278,26 +303,22 @@ This pull request contains the setup for the assignment located at
 
                     # Now scan for individual assignments within this root
                     if assignments_root.exists():
-                        for assignment_root, assignment_dirs, _ in os.walk(
+                        for assignment_root, _, _ in os.walk(
                             assignments_root
                         ):
                             assignment_root_path = Path(assignment_root)
 
-                            for assignment_dir in assignment_dirs:
-                                if self.assignment_pattern.match(
-                                    assignment_dir
-                                ):
-                                    full_assignment_path = (
-                                        assignment_root_path / assignment_dir
-                                    )
-                                    # Get relative path from workspace root
-                                    relative_path = (
-                                        full_assignment_path.relative_to(
-                                            workspace_root
-                                        )
-                                    )
-                                    assignments.append(str(relative_path))
-                                    print(f"Found assignment: {relative_path}")
+                            # Check if the current directory itself matches the assignment pattern
+                            # But skip the root assignments directory itself
+                            current_dir_name = assignment_root_path.name
+                            if (self.assignment_pattern.match(current_dir_name) and 
+                                assignment_root_path != assignments_root):
+                                # Get relative path from workspace root
+                                relative_path = assignment_root_path.relative_to(
+                                    workspace_root
+                                )
+                                assignments.append(str(relative_path))
+                                print(f"Found assignment: {relative_path}")
 
         return assignments
 
@@ -319,14 +340,14 @@ This pull request contains the setup for the assignment located at
             return {branch.name for branch in branches}
         except GithubException as e:
             print(f"Error getting branches: {e}")
-            return set()
+            sys.exit(1)
 
     def get_existing_pull_requests(self) -> Set[str]:
         """
-        Get all existing pull request head branch names.
+        Get all existing pull request head branch names (open and closed).
 
         Returns:
-            Set of branch names that have pull requests
+            Set of branch names that have or have had pull requests
         """
         if self.dry_run:
             print("[DRY RUN] Would check existing pull requests with command:")
@@ -339,7 +360,40 @@ This pull request contains the setup for the assignment located at
             return {pr.head.ref for pr in pulls}
         except GithubException as e:
             print(f"Error getting pull requests: {e}")
-            return set()
+            sys.exit(1)
+
+    def has_branch_changes(self, branch_name: str) -> bool:
+        """
+        Check if a branch has changes compared to the default branch.
+        
+        Args:
+            branch_name: Name of the branch to compare
+            
+        Returns:
+            True if branch has changes, False otherwise
+        """
+        if self.dry_run:
+            print(f"[DRY RUN] Would check for changes between '{branch_name}' and '{self.default_branch}' with command:")
+            print(f"  gh api repos/:owner/:repo/compare/{self.default_branch}...{branch_name} --jq '.ahead_by'")
+            # In dry-run, assume there are changes
+            return True
+            
+        try:
+            # Compare the branch with the default branch
+            comparison = self.repo.compare(self.default_branch, branch_name)
+            
+            # Check if there are commits ahead (changes in the branch)
+            has_changes = comparison.ahead_by > 0
+            
+            print(f"Branch '{branch_name}' has {comparison.ahead_by} commits ahead of '{self.default_branch}'")
+            if comparison.ahead_by == 0:
+                print(f"No commits found. Branch '{branch_name}' is up to date with '{self.default_branch}'")
+            
+            return has_changes
+            
+        except GithubException as e:
+            print(f"Error comparing branches '{self.default_branch}' and '{branch_name}': {e}")
+            sys.exit(1)
 
     def create_branch(self, branch_name: str) -> bool:
         """
@@ -358,18 +412,19 @@ This pull request contains the setup for the assignment located at
             # Get the default branch reference
             default_ref = self.repo.get_git_ref(f"heads/{self.default_branch}")
 
-            # Create new branch
+            # Create new branch directly on remote repository via GitHub API
+            # (This immediately creates the branch on the remote, no local git operations)
             self.repo.create_git_ref(
                 ref=f"refs/heads/{branch_name}", sha=default_ref.object.sha
             )
 
-            print(f"Created branch: {branch_name}")
+            print(f"✅ Created branch: {branch_name} (pushed to remote)")
             self.created_branches.append(branch_name)
             return True
 
         except GithubException as e:
             print(f"Error creating branch '{branch_name}': {e}")
-            return False
+            sys.exit(1)
 
     def create_readme(self, assignment_path: str, branch_name: str) -> bool:
         """
@@ -410,18 +465,56 @@ Please add your submission guidelines here.
 
             # Check if README already exists
             try:
-                self.repo.get_contents(readme_path, ref=branch_name)
+                existing_file = self.repo.get_contents(readme_path, ref=branch_name)
                 print(
                     f"README already exists at {readme_path} "
-                    f"in branch {branch_name}"
+                    f"in branch {branch_name} (SHA: {existing_file.sha})"
                 )
+                
+                # Augment existing README by appending workflow comment
+                existing_content = existing_file.content
+                if isinstance(existing_content, str):
+                    # Content from GitHub API is base64 encoded string
+                    import base64
+                    existing_content = base64.b64decode(existing_content).decode('utf-8')
+                elif isinstance(existing_content, bytes):
+                    existing_content = existing_content.decode('utf-8')
+                else:
+                    existing_content = str(existing_content)
+                
+                # Add workflow augmentation comment
+                augmentation_comment = f"""
+
+---
+
+*This README was augmented by the Assignment Pull Request Creator action.*
+"""
+                
+                augmented_content = existing_content.rstrip() + augmentation_comment
+                
+                # Update the existing file with augmented content
+                commit_info = self.repo.update_file(
+                    path=readme_path,
+                    message=f"Augment README for assignment {assignment_path}",
+                    content=augmented_content,
+                    sha=existing_file.sha,
+                    branch=branch_name,
+                )
+                
+                print(
+                    f"✅ Augmented existing README.md at {readme_path} in branch {branch_name} (pushed to remote)"
+                )
+                print(f"   Commit SHA: {commit_info['commit'].sha}")
                 return True
+                
             except GithubException:
                 # File doesn't exist, create it
+                print(f"README does not exist at {readme_path}, creating...")
                 pass
 
-            # Create the README file
-            self.repo.create_file(
+            # Create the README file directly on remote repository via GitHub API
+            # (This immediately creates the file and commit on the remote, no local git operations)
+            commit_info = self.repo.create_file(
                 path=readme_path,
                 message=f"Add README for assignment {assignment_path}",
                 content=readme_content,
@@ -429,19 +522,21 @@ Please add your submission guidelines here.
             )
 
             print(
-                f"Created README.md at {readme_path} in branch {branch_name}"
+                f"✅ Created README.md at {readme_path} in branch {branch_name} (pushed to remote)"
             )
+            print(f"   Commit SHA: {commit_info['commit'].sha}")
             return True
 
         except GithubException as e:
             print(f"Error creating README for '{assignment_path}': {e}")
-            return False
+            sys.exit(1)
 
     def create_pull_request(
         self, assignment_path: str, branch_name: str
     ) -> bool:
         """
         Create a pull request for the assignment branch.
+        Assumes changes have already been validated before calling this method.
 
         Args:
             assignment_path: Relative path to assignment folder
@@ -477,7 +572,8 @@ This pull request contains the setup for the assignment located at
 *Request Creator action.*
 """
 
-            # Create the pull request
+            # Create the pull request directly on remote repository via GitHub API
+            # (This immediately creates the PR on the remote, no local git operations)
             pr = self.repo.create_pull(
                 title=title,
                 body=body,
@@ -485,16 +581,28 @@ This pull request contains the setup for the assignment located at
                 base=self.default_branch,
             )
 
-            print(f"Created pull request #{pr.number}: {title}")
+            print(f"✅ Created pull request #{pr.number}: {title} (available on remote)")
             self.created_pull_requests.append(f"#{pr.number}")
             return True
 
         except GithubException as e:
             print(f"Error creating pull request for '{assignment_path}': {e}")
-            return False
+            sys.exit(1)
 
     def process_assignments(self) -> None:
-        """Process all found assignments and create branches/PRs as needed."""
+        """
+        Process all found assignments and create branches/PRs as needed.
+        
+        Implements smart logic to handle assignment lifecycle:
+        
+        Branch Creation:
+        - Creates branch only if no branch exists AND no PR has ever existed
+        - Prevents recreating branches for completed assignments (merged PRs)
+        
+        Pull Request Creation:  
+        - Creates PR only if NO PR has ever existed for the branch AND branch has changes
+        - Prevents creating duplicate PRs and invalid PRs with no changes
+        """
         assignments = self.find_assignments()
 
         if not assignments:
@@ -514,35 +622,53 @@ This pull request contains the setup for the assignment located at
             print(f"\nProcessing assignment: {assignment_path}")
             print(f"Branch name: {branch_name}")
 
-            # Check if branch exists and if PR exists
+            # Check if branch exists and if PR exists (or has ever existed)
             branch_exists = branch_name in existing_branches
-            pr_exists = branch_name in existing_prs
+            pr_has_existed = branch_name in existing_prs
 
-            if not branch_exists:
-                print(f"Branch '{branch_name}' does not exist, creating...")
-                if not self.create_branch(branch_name):
-                    continue
-            else:
+            # Only create branch if:
+            # 1. Branch doesn't exist AND
+            # 2. No PR has ever existed for this branch name
+            if not branch_exists and not pr_has_existed:
+                print(f"Branch '{branch_name}' does not exist and no PR has ever existed, creating...")
+                self.create_branch(branch_name)
+                branch_exists = True  # Branch now exists (or simulated)
+            elif not branch_exists and pr_has_existed:
+                print(f"Branch '{branch_name}' does not exist but PR has existed before (likely merged and branch deleted), skipping branch creation")
+                continue
+            elif branch_exists:
                 print(f"Branch '{branch_name}' already exists")
 
-            if not pr_exists:
+            # Only create PR if NO PR has ever existed for this branch name
+            if not pr_has_existed and branch_exists:
                 print(
-                    f"No PR exists for branch '{branch_name}', "
-                    f"creating README and PR..."
+                    f"No PR has ever existed for branch '{branch_name}', "
+                    f"preparing assignment content and PR..."
                 )
 
-                # Create README in the assignment folder
-                if not self.create_readme(assignment_path, branch_name):
-                    print(
-                        "Skipping PR creation due to README creation failure"
-                    )
+                # First, create README in the assignment folder to ensure we have changes
+                print(f"Creating README content for assignment '{assignment_path}'...")
+                self.create_readme(assignment_path, branch_name)
+
+                # Add a small delay to ensure GitHub API consistency (only in live mode)
+                # (the commit might need a moment to be reflected in branch comparison)
+                if not self.dry_run:
+                    print("Waiting for GitHub API consistency...")
+                    import time
+                    time.sleep(1)
+
+                # Then check if there are changes (there should be after README creation)
+                print(f"Checking for changes in branch '{branch_name}'...")
+                if not self.has_branch_changes(branch_name):
+                    print(f"❌ No changes detected in branch '{branch_name}' after content creation, skipping PR creation")
                     continue
 
-                # Create pull request
+                # Finally, create pull request
+                print(f"✅ Changes detected, creating pull request...")
                 self.create_pull_request(assignment_path, branch_name)
-            else:
+            elif pr_has_existed:
                 print(
-                    f"PR already exists for branch '{branch_name}', skipping"
+                    f"PR has existed before for branch '{branch_name}', skipping PR creation"
                 )
 
     def set_outputs(self) -> None:

@@ -8,6 +8,7 @@ scanning functionality and GitHub Actions integration.
 
 import os
 import re
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -108,6 +109,47 @@ class TestAssignmentDiscovery(unittest.TestCase):
         normalized_assignments = [assignment.replace('\\', '/') for assignment in assignments]
         self.assertIn('week-1/assignment-1', normalized_assignments)
         self.assertIn('week-2/assignment-2', normalized_assignments)
+
+    def test_assignment_discovery_deep_nested(self):
+        """Test assignment discovery in deeply nested structures."""
+        structure = {
+            'assignments': {
+                'semester1': {
+                    'week1': {
+                        'assignment-1': {
+                            'instructions.md': '# Assignment 1'
+                        }
+                    },
+                    'week2': {
+                        'assignment-2': {
+                            'instructions.md': '# Assignment 2'
+                        }
+                    }
+                },
+                'semester2': {
+                    'modules': {
+                        'module1': {
+                            'assignment-3': {
+                                'instructions.md': '# Assignment 3'
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        self.create_test_structure(structure)
+
+        assignments = self._find_assignments(
+            str(Path(self.temp_dir) / 'assignments'),
+            self.assignment_regex
+        )
+        
+        self.assertEqual(len(assignments), 3)
+        # Normalize paths for cross-platform compatibility
+        normalized_assignments = [assignment.replace('\\', '/') for assignment in assignments]
+        self.assertIn('semester1/week1/assignment-1', normalized_assignments)
+        self.assertIn('semester1/week2/assignment-2', normalized_assignments)
+        self.assertIn('semester2/modules/module1/assignment-3', normalized_assignments)
 
     def test_assignment_discovery_multiple_roots(self):
         """Test discovery with multiple assignment root patterns."""
@@ -473,6 +515,592 @@ class TestDryRunFunctionality(unittest.TestCase):
         with self.assertRaises(Exception):
             from create_assignment_prs import AssignmentPRCreator
             AssignmentPRCreator()
+
+
+class TestPullRequestLogic(unittest.TestCase):
+    """Test cases for branch and pull request creation logic."""
+
+    def setUp(self):
+        """Set up test environment with mocked GitHub API."""
+        self.temp_dir = tempfile.mkdtemp()
+        
+        # Create mock environment
+        self.env_patcher = patch.dict(os.environ, {
+            'GITHUB_TOKEN': 'test_token',
+            'GITHUB_REPOSITORY': 'test/repo',
+            'ASSIGNMENTS_ROOT_REGEX': '^assignments$',
+            'ASSIGNMENT_REGEX': '^assignment-\\d+$',
+            'DEFAULT_BRANCH': 'main',
+            'DRY_RUN': 'false'
+        })
+        self.env_patcher.start()
+        
+        # Mock GitHub API
+        self.github_patcher = patch('create_assignment_prs.Github')
+        self.mock_github_class = self.github_patcher.start()
+        self.mock_github = MagicMock()
+        self.mock_repo = MagicMock()
+        self.mock_github_class.return_value = self.mock_github
+        self.mock_github.get_repo.return_value = self.mock_repo
+
+    def tearDown(self):
+        """Clean up test environment."""
+        self.env_patcher.stop()
+        self.github_patcher.stop()
+        import shutil
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_branch_not_recreated_after_pr_merge(self):
+        """Test that branch is not recreated if PR was merged and branch deleted."""
+        from create_assignment_prs import AssignmentPRCreator
+        
+        # Create test assignment structure
+        assignments_dir = Path(self.temp_dir) / "assignments"
+        assignments_dir.mkdir()
+        (assignments_dir / "assignment-1").mkdir()
+        (assignments_dir / "assignment-1" / "instructions.md").write_text("Test assignment")
+        
+        # Mock existing state: no branches, but closed PR exists
+        mock_branch1 = MagicMock()
+        mock_branch1.name = "main"
+        self.mock_repo.get_branches.return_value = [mock_branch1]  # Only main branch exists
+        
+        # Mock closed PR that used to point to the branch
+        mock_pr = MagicMock()
+        mock_pr.head.ref = "assignments-assignment-1"
+        mock_pr.state = "closed"
+        self.mock_repo.get_pulls.return_value = [mock_pr]
+        
+        # Change working directory to temp dir
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(self.temp_dir)
+            creator = AssignmentPRCreator()
+            
+            # Override the assignments discovery to use our test directory
+            creator.find_assignments = lambda: ["assignments/assignment-1"]
+            
+            # Mock the sanitize_branch_name method to return expected branch name
+            creator.sanitize_branch_name = lambda path: "assignments-assignment-1"
+            
+            # Process assignments
+            creator.process_assignments()
+            
+            # Verify that create_git_ref was NOT called (branch not recreated)
+            self.mock_repo.create_git_ref.assert_not_called()
+            
+            # Verify that create_pull was NOT called
+            self.mock_repo.create_pull.assert_not_called()
+            
+        finally:
+            os.chdir(original_cwd)
+
+    def test_branch_created_when_no_pr_history(self):
+        """Test that branch is created when no PR has ever existed."""
+        from create_assignment_prs import AssignmentPRCreator
+        
+        # Create test assignment structure
+        assignments_dir = Path(self.temp_dir) / "assignments"
+        assignments_dir.mkdir()
+        (assignments_dir / "assignment-1").mkdir()
+        (assignments_dir / "assignment-1" / "instructions.md").write_text("Test assignment")
+        
+        # Mock existing state: no branches, no PRs
+        mock_branch1 = MagicMock()
+        mock_branch1.name = "main"
+        self.mock_repo.get_branches.return_value = [mock_branch1]  # Only main branch exists
+        self.mock_repo.get_pulls.return_value = []  # No PRs exist
+        
+        # Mock branch creation
+        mock_ref = MagicMock()
+        mock_ref.object.sha = "abc123"
+        self.mock_repo.get_git_ref.return_value = mock_ref
+        
+        # Mock comparison showing changes (assume there are changes after branch creation)
+        mock_comparison = MagicMock()
+        mock_comparison.ahead_by = 1
+        self.mock_repo.compare.return_value = mock_comparison
+        
+        # Change working directory to temp dir
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(self.temp_dir)
+            creator = AssignmentPRCreator()
+            
+            # Override the assignments discovery to use our test directory
+            creator.find_assignments = lambda: ["assignments/assignment-1"]
+            
+            # Mock the sanitize_branch_name method to return expected branch name
+            creator.sanitize_branch_name = lambda path: "assignments-assignment-1"
+            
+            # Process assignments
+            creator.process_assignments()
+            
+            # Verify that create_git_ref WAS called (branch created)
+            self.mock_repo.create_git_ref.assert_called_once()
+            
+            # Verify the correct ref was created
+            call_args = self.mock_repo.create_git_ref.call_args
+            self.assertEqual(call_args[1]['ref'], 'refs/heads/assignments-assignment-1')
+            
+        finally:
+            os.chdir(original_cwd)
+
+    def test_pr_not_created_for_existing_branch_with_closed_pr(self):
+        """Test that PR is NOT created for existing branch that has a closed PR."""
+        from create_assignment_prs import AssignmentPRCreator
+        
+        # Create test assignment structure
+        assignments_dir = Path(self.temp_dir) / "assignments"
+        assignments_dir.mkdir()
+        (assignments_dir / "assignment-1").mkdir()
+        (assignments_dir / "assignment-1" / "instructions.md").write_text("Test assignment")
+        
+        # Mock existing state: branch exists, closed PR exists
+        mock_branch1 = MagicMock()
+        mock_branch1.name = "main"
+        mock_branch2 = MagicMock()
+        mock_branch2.name = "assignments-assignment-1"
+        self.mock_repo.get_branches.return_value = [mock_branch1, mock_branch2]
+        
+        # Mock closed PR exists
+        mock_pr = MagicMock()
+        mock_pr.head.ref = "assignments-assignment-1" 
+        mock_pr.state = "closed"
+        self.mock_repo.get_pulls.return_value = [mock_pr]  # Closed PR exists
+        
+        # Change working directory to temp dir
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(self.temp_dir)
+            creator = AssignmentPRCreator()
+            
+            # Override the assignments discovery to use our test directory
+            creator.find_assignments = lambda: ["assignments/assignment-1"]
+            
+            # Mock the sanitize_branch_name method to return expected branch name
+            creator.sanitize_branch_name = lambda path: "assignments-assignment-1"
+            
+            # Process assignments
+            creator.process_assignments()
+            
+            # Verify that create_git_ref was NOT called (branch already exists)
+            self.mock_repo.create_git_ref.assert_not_called()
+            
+            # Verify that create_pull was NOT called (PR has existed before)
+            self.mock_repo.create_pull.assert_not_called()
+            
+        finally:
+            os.chdir(original_cwd)
+
+    def test_pr_created_for_existing_branch_without_any_pr(self):
+        """Test that PR IS created for existing branch that has never had a PR."""
+        from create_assignment_prs import AssignmentPRCreator
+        
+        # Create test assignment structure
+        assignments_dir = Path(self.temp_dir) / "assignments"
+        assignments_dir.mkdir()
+        (assignments_dir / "assignment-1").mkdir()
+        (assignments_dir / "assignment-1" / "instructions.md").write_text("Test assignment")
+        
+        # Mock existing state: branch exists, NO PRs have ever existed
+        mock_branch1 = MagicMock()
+        mock_branch1.name = "main"
+        mock_branch2 = MagicMock()
+        mock_branch2.name = "assignments-assignment-1"
+        self.mock_repo.get_branches.return_value = [mock_branch1, mock_branch2]
+        
+        # No PRs exist at all
+        self.mock_repo.get_pulls.return_value = []
+        
+        # Mock comparison showing changes (assume branch has changes)
+        mock_comparison = MagicMock()
+        mock_comparison.ahead_by = 1
+        self.mock_repo.compare.return_value = mock_comparison
+        
+        # Change working directory to temp dir
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(self.temp_dir)
+            creator = AssignmentPRCreator()
+            
+            # Override the assignments discovery to use our test directory
+            creator.find_assignments = lambda: ["assignments/assignment-1"]
+            
+            # Mock the sanitize_branch_name method to return expected branch name
+            creator.sanitize_branch_name = lambda path: "assignments-assignment-1"
+            
+            # Process assignments
+            creator.process_assignments()
+            
+            # Verify that create_git_ref was NOT called (branch already exists)
+            self.mock_repo.create_git_ref.assert_not_called()
+            
+            # Verify that create_pull WAS called (no PR has ever existed)
+            self.mock_repo.create_pull.assert_called_once()
+            
+        finally:
+            os.chdir(original_cwd)
+
+    def test_pr_not_created_when_no_changes_after_readme(self):
+        """Test that PR is NOT created when README creation doesn't result in changes."""
+        from create_assignment_prs import AssignmentPRCreator
+        
+        # Create test assignment structure
+        assignments_dir = Path(self.temp_dir) / "assignments"
+        assignments_dir.mkdir()
+        (assignments_dir / "assignment-1").mkdir()
+        (assignments_dir / "assignment-1" / "instructions.md").write_text("Test assignment")
+        
+        # Mock existing state: branch exists, no PRs exist
+        mock_branch1 = MagicMock()
+        mock_branch1.name = "main"
+        mock_branch2 = MagicMock()
+        mock_branch2.name = "assignments-assignment-1"
+        self.mock_repo.get_branches.return_value = [mock_branch1, mock_branch2]
+        
+        # No PRs exist
+        self.mock_repo.get_pulls.return_value = []
+        
+        # Mock README already exists (no new changes)
+        self.mock_repo.get_contents.return_value = MagicMock()  # README exists
+        
+        # Mock comparison showing no changes (0 commits ahead) after README "creation"
+        mock_comparison = MagicMock()
+        mock_comparison.ahead_by = 0
+        self.mock_repo.compare.return_value = mock_comparison
+        
+        # Change working directory to temp dir
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(self.temp_dir)
+            creator = AssignmentPRCreator()
+            
+            # Override the assignments discovery to use our test directory
+            creator.find_assignments = lambda: ["assignments/assignment-1"]
+            
+            # Mock the sanitize_branch_name method to return expected branch name
+            creator.sanitize_branch_name = lambda path: "assignments-assignment-1"
+            
+            # Process assignments
+            creator.process_assignments()
+            
+            # Verify that create_git_ref was NOT called (branch already exists)
+            self.mock_repo.create_git_ref.assert_not_called()
+            
+            # Verify that create_pull was NOT called (no changes after README creation)
+            self.mock_repo.create_pull.assert_not_called()
+            
+            # Verify that compare was called to check for changes
+            self.mock_repo.compare.assert_called_once_with("main", "assignments-assignment-1")
+            
+        finally:
+            os.chdir(original_cwd)
+
+    def test_pr_created_when_readme_creates_changes(self):
+        """Test that PR IS created when README creation results in changes."""
+        from create_assignment_prs import AssignmentPRCreator
+        
+        # Create test assignment structure
+        assignments_dir = Path(self.temp_dir) / "assignments"
+        assignments_dir.mkdir()
+        (assignments_dir / "assignment-1").mkdir()
+        (assignments_dir / "assignment-1" / "instructions.md").write_text("Test assignment")
+        
+        # Mock existing state: branch exists, no PRs exist
+        mock_branch1 = MagicMock()
+        mock_branch1.name = "main"
+        mock_branch2 = MagicMock()
+        mock_branch2.name = "assignments-assignment-1"
+        self.mock_repo.get_branches.return_value = [mock_branch1, mock_branch2]
+        
+        # No PRs exist
+        self.mock_repo.get_pulls.return_value = []
+        
+        # Mock README doesn't exist (will create new content)
+        from github.GithubException import GithubException
+        self.mock_repo.get_contents.side_effect = GithubException(404, "File not found")
+        
+        # Mock comparison showing changes (1 commit ahead) after README creation
+        mock_comparison = MagicMock()
+        mock_comparison.ahead_by = 1
+        self.mock_repo.compare.return_value = mock_comparison
+        
+        # Change working directory to temp dir
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(self.temp_dir)
+            creator = AssignmentPRCreator()
+            
+            # Override the assignments discovery to use our test directory
+            creator.find_assignments = lambda: ["assignments/assignment-1"]
+            
+            # Mock the sanitize_branch_name method to return expected branch name
+            creator.sanitize_branch_name = lambda path: "assignments-assignment-1"
+            
+            # Process assignments
+            creator.process_assignments()
+            
+            # Verify that create_git_ref was NOT called (branch already exists)
+            self.mock_repo.create_git_ref.assert_not_called()
+            
+            # Verify that create_file was called (README created)
+            self.mock_repo.create_file.assert_called_once()
+            
+            # Verify that create_pull WAS called (changes exist after README creation)
+            self.mock_repo.create_pull.assert_called_once()
+            
+            # Verify that compare was called to check for changes
+            self.mock_repo.compare.assert_called_once_with("main", "assignments-assignment-1")
+            
+        finally:
+            os.chdir(original_cwd)
+
+    def test_readme_augmentation_when_exists(self):
+        """Test that existing README is augmented instead of replaced."""
+        from create_assignment_prs import AssignmentPRCreator
+        from github.GithubException import GithubException
+        import base64
+        
+        # Create test assignment structure
+        assignments_dir = Path(self.temp_dir) / "assignments"
+        assignments_dir.mkdir()
+        (assignments_dir / "assignment-1").mkdir()
+        (assignments_dir / "assignment-1" / "instructions.md").write_text("Test assignment")
+        
+        # Mock existing branches and PRs
+        mock_branch = MagicMock()
+        mock_branch.name = "assignments-assignment-1"
+        self.mock_repo.get_branches.return_value = [mock_branch]
+        self.mock_repo.get_pulls.return_value = []  # No PRs exist
+        
+        # Mock existing README file
+        existing_readme_content = "# Existing Assignment\\n\\nThis is an existing README with content."
+        mock_existing_file = MagicMock()
+        mock_existing_file.content = base64.b64encode(existing_readme_content.encode('utf-8')).decode('utf-8')
+        mock_existing_file.sha = "existing_file_sha"
+        self.mock_repo.get_contents.return_value = mock_existing_file
+        
+        # Mock update_file response
+        mock_update_commit = MagicMock()
+        mock_update_commit.sha = "updated_commit_sha"
+        self.mock_repo.update_file.return_value = {'commit': mock_update_commit}
+        
+        # Mock comparison showing changes after augmentation
+        mock_comparison = MagicMock()
+        mock_comparison.ahead_by = 1
+        self.mock_repo.compare.return_value = mock_comparison
+        
+        # Mock PR creation
+        mock_pr = MagicMock()
+        mock_pr.number = 123
+        self.mock_repo.create_pull.return_value = mock_pr
+        
+        # Change to temp directory and run
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(self.temp_dir)
+            
+            creator = AssignmentPRCreator()
+            creator.process_assignments()
+            
+            # Verify that update_file was called (README augmented, not created)
+            self.mock_repo.update_file.assert_called_once()
+            self.mock_repo.create_file.assert_not_called()
+            
+            # Verify the augmented content contains the original and the comment
+            update_call_args = self.mock_repo.update_file.call_args
+            augmented_content = update_call_args[1]['content']
+            
+            # Check that original content is preserved
+            self.assertIn("This is an existing README with content.", augmented_content)
+            
+            # Check that augmentation comment is added
+            self.assertIn("This README was augmented by the Assignment Pull Request Creator action.", augmented_content)
+            
+            # Verify PR was created (changes exist after augmentation)
+            self.mock_repo.create_pull.assert_called_once()
+            
+        finally:
+            os.chdir(original_cwd)
+
+
+class TestErrorHandling(unittest.TestCase):
+    """Test cases for error handling and failure scenarios."""
+
+    def setUp(self):
+        """Set up test environment with mocked GitHub API."""
+        self.temp_dir = tempfile.mkdtemp()
+        
+        # Create mock environment
+        self.env_patcher = patch.dict(os.environ, {
+            'GITHUB_TOKEN': 'test_token',
+            'GITHUB_REPOSITORY': 'test/repo',
+            'ASSIGNMENTS_ROOT_REGEX': '^assignments$',
+            'ASSIGNMENT_REGEX': '^assignment-\\d+$',
+            'DEFAULT_BRANCH': 'main',
+            'DRY_RUN': 'false'
+        })
+        self.env_patcher.start()
+
+        # Create test assignment structure
+        structure = {
+            'assignments': {
+                'assignment-1': {
+                    'instructions.md': '# Assignment 1'
+                }
+            }
+        }
+        self.create_test_structure(structure)
+
+        # Mock GitHub API
+        self.github_patcher = patch('create_assignment_prs.Github')
+        self.mock_github_class = self.github_patcher.start()
+        self.mock_github = MagicMock()
+        self.mock_github_class.return_value = self.mock_github
+        self.mock_repo = MagicMock()
+        self.mock_github.get_repo.return_value = self.mock_repo
+
+    def tearDown(self):
+        """Clean up test environment."""
+        self.env_patcher.stop()
+        self.github_patcher.stop()
+        import shutil
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def create_test_structure(self, structure: dict, base_path: Path = None):
+        """Create test directory structure."""
+        if base_path is None:
+            base_path = Path(self.temp_dir)
+            
+        for name, content in structure.items():
+            if isinstance(content, dict):
+                dir_path = base_path / name
+                dir_path.mkdir(exist_ok=True)
+                self.create_test_structure(content, dir_path)
+            else:
+                file_path = base_path / name
+                file_path.write_text(content)
+
+    @patch('sys.exit')
+    def test_get_branches_error_exits(self, mock_exit):
+        """Test that get_branches failure causes script to exit."""
+        from github.GithubException import GithubException
+        
+        # Mock get_branches to raise an exception
+        self.mock_repo.get_branches.side_effect = GithubException(500, "Server error")
+        
+        # Change working directory and run
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(self.temp_dir)
+            from create_assignment_prs import AssignmentPRCreator
+            creator = AssignmentPRCreator()
+            
+            # This should trigger get_branches which will fail and call sys.exit(1)
+            creator.get_existing_branches()
+            
+            # Verify sys.exit(1) was called
+            mock_exit.assert_called_once_with(1)
+            
+        finally:
+            os.chdir(original_cwd)
+
+    @patch('sys.exit')
+    def test_get_pulls_error_exits(self, mock_exit):
+        """Test that get_pulls failure causes script to exit."""
+        from github.GithubException import GithubException
+        
+        # Mock get_pulls to raise an exception
+        self.mock_repo.get_pulls.side_effect = GithubException(403, "Forbidden")
+        
+        # Change working directory and run
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(self.temp_dir)
+            from create_assignment_prs import AssignmentPRCreator
+            creator = AssignmentPRCreator()
+            
+            # This should trigger get_pulls which will fail and call sys.exit(1)
+            creator.get_existing_pull_requests()
+            
+            # Verify sys.exit(1) was called
+            mock_exit.assert_called_once_with(1)
+            
+        finally:
+            os.chdir(original_cwd)
+
+    @patch('sys.exit')
+    def test_create_branch_error_exits(self, mock_exit):
+        """Test that create_branch failure causes script to exit."""
+        from github.GithubException import GithubException
+        
+        # Mock create_git_ref to raise an exception
+        self.mock_repo.create_git_ref.side_effect = GithubException(422, "Validation failed")
+        
+        # Change working directory and run
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(self.temp_dir)
+            from create_assignment_prs import AssignmentPRCreator
+            creator = AssignmentPRCreator()
+            
+            # This should trigger create_git_ref which will fail and call sys.exit(1)
+            creator.create_branch("test-branch")
+            
+            # Verify sys.exit(1) was called
+            mock_exit.assert_called_once_with(1)
+            
+        finally:
+            os.chdir(original_cwd)
+
+
+def run_integration_tests_main():
+    """Main integration tests function."""
+    print("Running Integration Tests")
+    print("=" * 50)
+    
+    # Get current script directory
+    script_dir = Path(__file__).parent
+    project_root = script_dir.parent
+    
+    # Expected assignment paths based on current project structure
+    expected_assignments = [
+        'assignments/assignment-1',
+        'assignments/assignment-2', 
+        'assignments/week-3/assignment-3'
+    ]
+    
+    print(f"Project root: {project_root}")
+    print(f"Looking for assignments matching default patterns...")
+    
+    # Test assignment discovery
+    os.chdir(project_root)
+    
+    # Import and test
+    sys.path.insert(0, str(project_root))
+    from create_assignment_prs import AssignmentPRCreator
+    
+    # Create instance with default settings
+    with patch.dict(os.environ, {
+        'GITHUB_TOKEN': 'test_token',
+        'GITHUB_REPOSITORY': 'test/repo',
+        'DRY_RUN': 'true'
+    }):
+        creator = AssignmentPRCreator()
+        discovered_assignments = creator.find_assignments()
+    
+    print(f"Discovered assignments: {discovered_assignments}")
+    print(f"Expected assignments: {expected_assignments}")
+    
+    # Verify assignment discovery
+    assert len(discovered_assignments) > 0, "No assignments were discovered"
+    
+    for expected in expected_assignments:
+        assert expected in discovered_assignments, f"Expected assignment {expected} not found"
+    
+    print("✅ Integration tests passed!")
+    print(f"Successfully discovered {len(discovered_assignments)} assignments")
 
 
 if __name__ == "__main__":
