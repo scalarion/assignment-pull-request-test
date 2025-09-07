@@ -13,7 +13,7 @@ import json
 import subprocess
 import base64
 from pathlib import Path
-from typing import List, Set
+from typing import Dict, List, Set
 from github import Github
 from github.GithubException import GithubException
 
@@ -578,21 +578,21 @@ This pull request contains the setup for the assignment located at
             print(f"Error getting local branches: {e}")
             sys.exit(1)
 
-    def get_existing_pull_requests(self) -> Set[str]:
+    def get_existing_pull_requests(self) -> Dict[str, str]:
         """
-        Get all existing pull request head branch names (open and closed).
+        Get all existing pull request head branch names and their states.
 
         Returns:
-            Set of branch names that have or have had pull requests
+            Dictionary mapping branch names to their PR states (open/closed)
         """
         if self.dry_run:
             print("[DRY RUN] Would check existing pull requests with GitHub API")
-            # Return empty set for dry-run to simulate no existing PRs
-            return set()
+            # Return empty dict for dry-run to simulate no existing PRs
+            return {}
             
         try:
             pulls = self.repo.get_pulls(state="all")
-            return {pr.head.ref for pr in pulls}
+            return {pr.head.ref: pr.state for pr in pulls}
         except GithubException as e:
             print(f"Error getting pull requests: {e}")
             sys.exit(1)
@@ -708,8 +708,11 @@ This pull request contains the setup for the assignment located at
             elif not branch_exists and pr_has_existed:
                 print(f"Branch '{branch_name}' does not exist but PR has existed before (likely merged and branch deleted), skipping")
                 continue
-            elif branch_exists:
-                print(f"Branch '{branch_name}' already exists locally, skipping")
+            elif branch_exists and not pr_has_existed:
+                print(f"Branch '{branch_name}' already exists locally but no PR has ever existed, will create PR")
+                branches_to_process.append((assignment_path, branch_name))
+            elif branch_exists and pr_has_existed:
+                print(f"Branch '{branch_name}' already exists locally and PR has existed before, skipping")
 
         # Phase 3: Push all changes atomically to remote
         if branches_to_process:
