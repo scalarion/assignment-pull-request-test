@@ -32,7 +32,7 @@ runs:
   using: "composite"
   steps:
     - name: Setup Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: "3.12"
 
@@ -40,7 +40,7 @@ runs:
       shell: bash
       run: |
         python -m pip install --upgrade pip
-        pip install requests PyGithub
+        pip install -r ${{ github.action_path }}/requirements.txt
 
     - name: Create assignment pull requests
       id: create-assignments
@@ -50,7 +50,6 @@ runs:
         ASSIGNMENTS_ROOT_REGEX: ${{ inputs.assignments-root-regex }}
         ASSIGNMENT_REGEX: ${{ inputs.assignment-regex }}
         GITHUB_REPOSITORY: ${{ github.repository }}
-        GITHUB_REF_NAME: ${{ github.ref_name }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
       run: python ${{ github.action_path }}/create_assignment_prs.py
 

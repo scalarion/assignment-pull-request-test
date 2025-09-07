@@ -1,0 +1,79 @@
+name: Test Action Only
+
+on:
+  workflow_dispatch:
+    inputs:
+      assignments-root-regex:
+        description: "Regex pattern for assignment root folders"
+        required: false
+        default: "^assignments$"
+      assignment-regex:
+        description: "Regex pattern for assignment folders"
+        required: false
+        default: '^assignment-\d+$'
+      default-branch:
+        description: "Default branch for pull requests"
+        required: false
+        default: "main"
+
+jobs:
+  test-action-only:
+    runs-on: ubuntu-latest
+    name: Test Assignment PR Creator Action
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Assignment PR Creator
+        id: assignment-pr
+        uses: ./
+        with:
+          assignments-root-regex: ${{ github.event.inputs.assignments-root-regex || '^assignments$' }}
+          assignment-regex: ${{ github.event.inputs.assignment-regex || '^assignment-\d+$' }}
+          default-branch: ${{ github.event.inputs.default-branch || 'main' }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Display detailed results
+        run: |
+          echo "## 📊 Assignment PR Creator Results"
+          echo ""
+          echo "### Configuration Used:"
+          echo "- Root Regex: ${{ github.event.inputs.assignments-root-regex || '^assignments$' }}"
+          echo "- Assignment Regex: ${{ github.event.inputs.assignment-regex || '^assignment-\d+$' }}"
+          echo "- Default Branch: ${{ github.event.inputs.default-branch || 'main' }}"
+          echo ""
+
+          echo "### Results:"
+          echo "**Created branches:** ${{ steps.assignment-pr.outputs.created-branches }}"
+          echo "**Created pull requests:** ${{ steps.assignment-pr.outputs.created-pull-requests }}"
+          echo ""
+
+          # Parse and display counts
+          BRANCHES='${{ steps.assignment-pr.outputs.created-branches }}'
+          PRS='${{ steps.assignment-pr.outputs.created-pull-requests }}'
+
+          BRANCH_COUNT=$(echo "$BRANCHES" | jq 'length')
+          PR_COUNT=$(echo "$PRS" | jq 'length')
+
+          echo "### Summary:"
+          echo "- **Branches created:** $BRANCH_COUNT"
+          echo "- **Pull requests created:** $PR_COUNT"
+
+          # List individual items if any were created
+          if [ "$BRANCH_COUNT" -gt 0 ]; then
+            echo ""
+            echo "### Created Branches:"
+            echo "$BRANCHES" | jq -r '.[]' | sed 's/^/- /'
+          fi
+
+          if [ "$PR_COUNT" -gt 0 ]; then
+            echo ""
+            echo "### Created Pull Requests:"
+            echo "$PRS" | jq -r '.[]' | sed 's/^/- #/'
+          fi
+
+          echo ""
+          echo "✅ Action test completed successfully!"

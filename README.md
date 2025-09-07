@@ -1,243 +1,328 @@
 # Assignment Pull Request Creator
 
-A reusable GitHub Action that automatically scans for assignment folders and
-creates pull requests with README files for educational repositories.
+A GitHub Action that automatically scans for assignment folders and creates pull
+requests with README files for educational repositories.
 
 ## Features
 
-- 🔍 **Smart Scanning**: Recursively scans a specified folder for assignments
-  matching a regex pattern
-- 🌿 **Branch Management**: Creates branches automatically with sanitized names
-- 📝 **README Generation**: Creates template README.md files for each assignment
-- 🔄 **Pull Request Creation**: Opens pull requests for assignment review and
-  collaboration
-- ⚙️ **Configurable**: Customizable folder paths and regex patterns
-- 🛡️ **Safe**: Only creates branches/PRs when they don't already exist
+- 🔍 **Smart Scanning**: Configurable regex patterns for assignment discovery
+- 🌿 **Branch Management**: Automatic branch creation with sanitized names
+- 📝 **README Generation**: Template README.md files for each assignment
+- 🔄 **Pull Request Creation**: Automated PRs for assignment review
+- 🛡️ **Safe Operation**: Only creates branches/PRs when they don't already exist
 
-## Usage
-
-### Basic Usage
+## Quick Start
 
 ```yaml
 name: Create Assignment Pull Requests
 on:
     push:
         branches: [main]
-    workflow_dispatch:
+        paths: ["assignments/**"]
 
 jobs:
     create-assignments:
         runs-on: ubuntu-latest
-        steps:
-            - name: Checkout repository
-              uses: actions/checkout@v4
-
-            - name: Create assignment pull requests
-              uses: majikmate/assignment-pull-request@v1
-              with:
-                  github-token: ${{ secrets.GITHUB_TOKEN }}
-```
-
-### Advanced Usage
-
-```yaml
-name: Create Assignment Pull Requests
-on:
-    push:
-        branches: [main]
-    workflow_dispatch:
-
-jobs:
-    create-assignments:
-        runs-on: ubuntu-latest
-        steps:
-            - name: Checkout repository
-              uses: actions/checkout@v4
-
-            - name: Create assignment pull requests
-              uses: majikmate/assignment-pull-request@v1
-              with:
-                  assignments-folder: "coursework"
-                  assignment-regex: '^(assignment|homework|lab)-\d+$'
-                  github-token: ${{ secrets.GITHUB_TOKEN }}
-```
-
-## Inputs
-
-| Input                | Description                                    | Required | Default               |
-| -------------------- | ---------------------------------------------- | -------- | --------------------- |
-| `assignments-folder` | Root folder containing assignments             | No       | `assignments`         |
-| `assignment-regex`   | Regular expression to match assignment folders | No       | `^assignment-\d+$`    |
-| `github-token`       | GitHub token for API access                    | Yes      | `${{ github.token }}` |
-
-## Outputs
-
-| Output                  | Description                                          |
-| ----------------------- | ---------------------------------------------------- |
-| `created-branches`      | JSON array of branch names that were created         |
-| `created-pull-requests` | JSON array of pull request numbers that were created |
-
-## How It Works
-
-1. **Scan**: The action recursively scans the specified `assignments-folder` for
-   subdirectories
-2. **Match**: Each subdirectory name is checked against the `assignment-regex`
-   pattern
-3. **Sanitize**: Assignment paths are converted to valid branch names by:
-   - Removing leading/trailing whitespace
-   - Replacing spaces with hyphens
-   - Removing slashes
-   - Converting to lowercase
-   - Removing consecutive/leading/trailing hyphens
-4. **Create Branch**: If a branch doesn't exist, create it from the default
-   branch
-5. **Generate README**: Create a template README.md in the assignment folder
-6. **Open PR**: Create a pull request if one doesn't already exist for the
-   branch
-
-## Repository Structure
-
-The action expects your repository to have a structure like:
-
-```
-your-repo/
-├── assignments/              # Default assignments folder
-│   ├── assignment-1/         # Matches default regex
-│   ├── assignment-2/         # Matches default regex
-│   └── week-3/
-│       └── assignment-3/     # Nested assignment
-├── src/                      # Your other code
-└── README.md
-```
-
-## Branch Naming
-
-Assignment paths are converted to branch names using these rules:
-
-| Assignment Path           | Branch Name               |
-| ------------------------- | ------------------------- |
-| `assignment-1`            | `assignment-1`            |
-| `week 2/assignment-2`     | `week-2-assignment-2`     |
-| `Module 3/Lab Assignment` | `module-3-lab-assignment` |
-
-## Example Workflows
-
-### Weekly Assignment Creation
-
-```yaml
-name: Weekly Assignment Setup
-on:
-    schedule:
-        - cron: "0 9 * * 1" # Every Monday at 9 AM
-    workflow_dispatch:
-
-jobs:
-    setup-assignments:
-        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+            pull-requests: write
         steps:
             - uses: actions/checkout@v4
             - uses: majikmate/assignment-pull-request@v1
               with:
-                  assignments-folder: "weekly-assignments"
-                  assignment-regex: '^week-\d+$'
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-### Course Module Setup
+## Configuration
+
+### Input Parameters
+
+| Parameter                | Description                                          | Required | Default                       |
+| ------------------------ | ---------------------------------------------------- | -------- | ----------------------------- |
+| `assignments-root-regex` | Regex pattern to match assignment root directories   | No       | `^assignments$`               |
+| `assignment-regex`       | Regex pattern to match individual assignment folders | No       | `^assignment-\\d+$`           |
+| `default-branch`         | Default branch to create pull requests against       | No       | `main`                        |
+| `github-token`           | GitHub token for API access                          | Yes      | `${{ secrets.GITHUB_TOKEN }}` |
+
+### Output Parameters
+
+| Parameter               | Description                                |
+| ----------------------- | ------------------------------------------ |
+| `created-branches`      | JSON array of branch names created         |
+| `created-pull-requests` | JSON array of pull request numbers created |
+
+## Complete Configuration Example
 
 ```yaml
-name: Course Module Setup
+name: Assignment Management
 on:
     push:
+        branches: [main, develop]
         paths:
-            - "modules/**"
+            - "assignments/**"
+            - "homework/**"
+            - "labs/**"
     workflow_dispatch:
+        inputs:
+            assignments-root-regex:
+                description: "Regex pattern for assignment root folders"
+                required: false
+                default: "^(assignments|homework|labs)$"
+            assignment-regex:
+                description: "Regex pattern for assignment folders"
+                required: false
+                default: '^(assignment|hw|lab)-\d+$'
+            default-branch:
+                description: "Default branch for pull requests"
+                required: false
+                default: "main"
 
 jobs:
-    setup-modules:
+    create-assignment-prs:
         runs-on: ubuntu-latest
+        permissions:
+            contents: write
+            pull-requests: write
+            issues: write
+
         steps:
-            - uses: actions/checkout@v4
-            - uses: majikmate/assignment-pull-request@v1
+            - name: Checkout repository
+              uses: actions/checkout@v4
               with:
-                  assignments-folder: "modules"
-                  assignment-regex: '^module-\d+-(assignment|lab|project)$'
+                  fetch-depth: 0
+
+            - name: Create assignment pull requests
+              id: create-prs
+              uses: majikmate/assignment-pull-request@v1
+              with:
+                  assignments-root-regex: ${{ github.event.inputs.assignments-root-regex || '^(assignments|homework|labs)$' }}
+                  assignment-regex: ${{ github.event.inputs.assignment-regex || '^(assignment|hw|lab)-\d+$' }}
+                  default-branch: ${{ github.event.inputs.default-branch || 'main' }}
                   github-token: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Display results
+              run: |
+                  echo "Created branches: ${{ steps.create-prs.outputs.created-branches }}"
+                  echo "Created PRs: ${{ steps.create-prs.outputs.created-pull-requests }}"
+
+                  # Count results
+                  BRANCH_COUNT=$(echo '${{ steps.create-prs.outputs.created-branches }}' | jq 'length')
+                  PR_COUNT=$(echo '${{ steps.create-prs.outputs.created-pull-requests }}' | jq 'length')
+
+                  echo "Summary: Created $BRANCH_COUNT branches and $PR_COUNT pull requests"
+
+            - name: Notify on failure
+              if: failure()
+              run: |
+                  echo "::error::Assignment PR creation failed. Check the logs above for details."
 ```
 
-## Permissions
+## Common Use Cases
 
-The action requires the following permissions:
+### 1. Standard Course Structure
+
+```
+repo/
+├── assignments/
+│   ├── assignment-1/
+│   ├── assignment-2/
+│   └── assignment-3/
+```
+
+**Configuration:**
 
 ```yaml
-permissions:
-    contents: write
-    pull-requests: write
+assignments-root-regex: "^assignments$"
+assignment-regex: '^assignment-\d+$'
 ```
 
-## Error Handling
+### 2. Multiple Assignment Types
 
-The action handles various scenarios gracefully:
+```
+repo/
+├── assignments/
+│   ├── assignment-1/
+│   └── assignment-2/
+├── homework/
+│   ├── hw-1/
+│   └── hw-2/
+├── labs/
+│   ├── lab-1/
+│   └── lab-2/
+```
 
-- ✅ Missing assignments folder (logs warning, continues)
-- ✅ No matching assignments found (logs info, exits successfully)
-- ✅ Branch already exists (skips branch creation)
-- ✅ Pull request already exists (skips PR creation)
-- ✅ README already exists (skips file creation)
-- ❌ Invalid GitHub token (fails with error)
-- ❌ Repository access issues (fails with error)
+**Configuration:**
+
+```yaml
+assignments-root-regex: "^(assignments|homework|labs)$"
+assignment-regex: '^(assignment|hw|lab)-\d+$'
+```
+
+### 3. Nested Weekly Structure
+
+```
+repo/
+├── assignments/
+│   ├── week-1/
+│   │   └── assignment-1/
+│   ├── week-2/
+│   │   └── assignment-2/
+```
+
+**Configuration:**
+
+```yaml
+assignments-root-regex: "^assignments$"
+assignment-regex: '^assignment-\d+$'
+```
+
+### 4. Course-Specific Naming
+
+```
+repo/
+├── cs101-assignments/
+│   ├── assignment-1/
+│   └── assignment-2/
+├── math202-homework/
+│   ├── hw-1/
+│   └── hw-2/
+```
+
+**Configuration:**
+
+```yaml
+assignments-root-regex: "^(cs101-assignments|math202-homework)$"
+assignment-regex: '^(assignment|hw)-\d+$'
+```
+
+## Multiple Assignment Types Example
+
+```yaml
+name: Process All Assignment Types
+on:
+    push:
+        branches: [main]
+
+jobs:
+    process-assignments:
+        runs-on: ubuntu-latest
+        strategy:
+            matrix:
+                include:
+                    - name: "Regular Assignments"
+                      root-pattern: "^assignments$"
+                      assignment-pattern: '^assignment-\d+$'
+                    - name: "Homework"
+                      root-pattern: "^homework$"
+                      assignment-pattern: '^hw-\d+$'
+                    - name: "Labs"
+                      root-pattern: "^labs$"
+                      assignment-pattern: '^lab-\d+$'
+                    - name: "Projects"
+                      root-pattern: "^projects$"
+                      assignment-pattern: '^project-\d+$'
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Process ${{ matrix.name }}
+              uses: majikmate/assignment-pull-request@v1
+              with:
+                  assignments-root-regex: ${{ matrix.root-pattern }}
+                  assignment-regex: ${{ matrix.assignment-pattern }}
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+```
 
 ## Development
 
-### Using Dev Containers (Recommended)
-
-This repository includes a development container configuration for a consistent development environment:
-
-1. **GitHub Codespaces**: Click "Code" → "Codespaces" → "Create codespace on main"
-2. **VS Code Dev Containers**: Install the Dev Containers extension, open the repo, and select "Reopen in Container"
-3. **Docker CLI**: Run `docker run -it --rm -v $(pwd):/workspace -w /workspace ghcr.io/majikmate/classroom-codespace-image:latest bash`
-
-The devcontainer automatically installs dependencies and configures the development environment. See [.devcontainer/README.md](.devcontainer/README.md) for details.
-
 ### Local Testing
 
-1. Clone the repository
-2. Set environment variables:
-   ```bash
-   export GITHUB_TOKEN="your_token"
-   export GITHUB_REPOSITORY="owner/repo"
-   export ASSIGNMENTS_FOLDER="assignments"
-   export ASSIGNMENT_REGEX="^assignment-\d+$"
-   ```
-3. Run the script:
-   ```bash
-   python create_assignment_prs.py
-   ```
+```bash
+# Clone and setup
+git clone https://github.com/majikmate/assignment-pull-request.git
+cd assignment-pull-request
 
-### Dependencies
+# Quick test - discover assignments
+cd tests && python test_local.py discover
 
-- Python 3.9+
-- PyGithub
-- requests
+# Quick test - test branch sanitization
+cd tests && python test_local.py sanitize "week-1/assignment-1"
 
-## Contributing
+# Run full local test suite
+cd tests && python test_local.py
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+# Run comprehensive unit tests
+python -m pytest tests/test_assignment_creator.py -v
 
-## License
+# Run integration tests
+cd tests && python test_assignment_creator.py
+```
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
-for details.
+### Test Suite
 
-## Support
+The repository includes a comprehensive test suite covering:
 
-If you encounter any issues or have questions:
+- **Unit Tests**: `tests/test_assignment_creator.py`
+  - Assignment discovery logic
+  - Branch name sanitization
+  - Regex pattern validation
+  - Environment configuration
 
-1. Check the
-   [Issues](https://github.com/majikmate/assignment-pull-request/issues) page
-2. Create a new issue with detailed information
-3. Include your workflow configuration and error logs
+- **Local Integration Tests**: `test_local.py`
+  - Quick assignment discovery
+  - Branch name sanitization
+  - Configuration testing
+
+- **GitHub Actions Integration Tests**: `.github/workflows/test-suite.yml`
+  - Code quality checks (Black, Flake8, MyPy)
+  - Cross-platform testing (Ubuntu, Windows, macOS)
+  - Performance testing with large structures
+  - Security scanning
+  - Full action integration testing
+
+### Test Commands
+
+````bash
+### Test Commands
+```bash
+# Use the test runner script (recommended)
+cd tests && bash test_runner.sh help                       # Show all available commands
+cd tests && bash test_runner.sh discovery                  # Discovery only
+cd tests && bash test_runner.sh sanitize                   # Sanitization only
+cd tests && bash test_runner.sh unit                       # Unit tests
+cd tests && bash test_runner.sh all                        # Run all tests
+
+# Direct pytest commands
+python -m pytest tests/ -v                     # All unit tests
+python -m pytest tests/ -k "sanitiz"          # Specific test pattern
+
+# Custom environment testing
+cd tests && ASSIGNMENT_REGEX='^hw-\d+$' bash test_runner.sh discovery
+````
+
+````
+### Required Permissions
+
+```yaml
+permissions:
+    contents: write # To create branches and files
+    pull-requests: write # To create pull requests
+````
+
+## Troubleshooting
+
+**No assignments found**: Check your regex patterns match your folder structure
+
+```bash
+python -c "import re; print(re.match(r'^assignment-\d+$', 'assignment-1'))"
+```
+
+**Permission errors**: Ensure your workflow has the required permissions listed
+above
+
+**Pattern issues**: Test patterns with the manual workflow dispatch to debug
+
+---
+
+For more examples and advanced usage, see the
+[GitHub repository](https://github.com/majikmate/assignment-pull-request).

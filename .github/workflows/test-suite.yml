@@ -1,0 +1,99 @@
+name: Test Suite
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test-cross-platform:
+    name: Test Python 3.12 on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Run unit tests
+        run: |
+          python -m pytest tests/test_assignment_creator.py -v
+
+      - name: Run integration tests (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cd tests && bash test_runner.sh unit
+
+      - name: Run integration tests (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          cd tests && python test_local.py discover
+
+  test-quality:
+    name: Code Quality and Security
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Run comprehensive test suite
+        run: |
+          cd tests && bash test_runner.sh all
+
+  test-action-local:
+    name: Test Action Locally
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Test action script directly
+        run: |
+          cd tests && python test_local.py discover
+        env:
+          ASSIGNMENTS_ROOT_REGEX: "^(assignments|homework|labs)$"
+          ASSIGNMENT_REGEX: '^(assignment|hw|lab)-\d+$'
+          DEFAULT_BRANCH: "main"
