@@ -3,18 +3,22 @@ description: "Scans for assignment folders and creates a pull request for each a
 author: "majikmate"
 
 inputs:
-  assignments-folder:
-    description: "Root folder containing assignments"
+  default-branch:
+    description: "Default branch to create pull requests against"
     required: false
-    default: "assignments"
+    default: "main"
+  assignments-root-regex:
+    description: "Regular expression to match assignment root folder paths"
+    required: false
+    default: "^assignments$"
   assignment-regex:
-    description: "Regular expression to match assignment folders"
+    description: "Regular expression to match assignment folders within the assignments folder"
     required: false
     default: '^assignment-\d+$'
   github-token:
     description: "GitHub token for API access"
     required: true
-    default: ${{ github.token }}
+    default: ${{ secrets.GITHUB_TOKEN }}
 
 outputs:
   created-branches:
@@ -30,7 +34,7 @@ runs:
     - name: Setup Python
       uses: actions/setup-python@v4
       with:
-        python-version: "3.9"
+        python-version: "3.12"
 
     - name: Install dependencies
       shell: bash
@@ -42,11 +46,12 @@ runs:
       id: create-assignments
       shell: bash
       env:
-        GITHUB_TOKEN: ${{ inputs.github-token }}
-        ASSIGNMENTS_FOLDER: ${{ inputs.assignments-folder }}
+        DEFAULT_BRANCH: ${{ inputs.default-branch }}
+        ASSIGNMENTS_ROOT_REGEX: ${{ inputs.assignments-root-regex }}
         ASSIGNMENT_REGEX: ${{ inputs.assignment-regex }}
         GITHUB_REPOSITORY: ${{ github.repository }}
         GITHUB_REF_NAME: ${{ github.ref_name }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
       run: python ${{ github.action_path }}/create_assignment_prs.py
 
 branding:

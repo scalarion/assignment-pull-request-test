@@ -33,10 +33,6 @@ env.bak/
 venv.bak/
 
 # IDEs
-.vscode/settings.json
-.vscode/launch.json
-.vscode/extensions.json
-.idea/
 *.swp
 *.swo
 *~
