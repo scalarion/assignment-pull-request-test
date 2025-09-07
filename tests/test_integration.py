@@ -118,7 +118,6 @@ class TestAssignmentPRCreatorIntegration(unittest.TestCase):
         print(f"✅ {scenario['name']}: Created {len(creator.created_branches)} branches and {len(creator.created_pull_requests)} PRs")
     
     @patch('create_assignment_prs.os.getcwd')
-    @patch('create_assignment_prs.os.getcwd')
     @patch('create_assignment_prs.os.walk')
     def test_existing_prs_workflow(self, mock_walk, mock_getcwd):
         """Test workflow with existing PRs."""

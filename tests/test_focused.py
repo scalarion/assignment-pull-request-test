@@ -108,15 +108,17 @@ class TestAssignmentPRCreatorFocused(unittest.TestCase):
         # Mock PR objects
         mock_pr1 = Mock()
         mock_pr1.head.ref = 'assignment-1'
+        mock_pr1.state = 'open'
         
         mock_pr2 = Mock()
         mock_pr2.head.ref = 'assignment-2'
+        mock_pr2.state = 'closed'
         
         self.mock_repo.get_pulls.return_value = [mock_pr1, mock_pr2]
         
         existing_prs = creator.get_existing_pull_requests()
         
-        expected = {'assignment-1', 'assignment-2'}
+        expected = {'assignment-1': 'open', 'assignment-2': 'closed'}
         self.assertEqual(existing_prs, expected)
 
     def test_get_existing_pull_requests_dry_run(self):
@@ -126,7 +128,7 @@ class TestAssignmentPRCreatorFocused(unittest.TestCase):
             
             existing_prs = creator.get_existing_pull_requests()
             
-            self.assertEqual(existing_prs, set())
+            self.assertEqual(existing_prs, {})
             self.mock_repo.get_pulls.assert_not_called()
 
     def test_create_pull_request_success(self):

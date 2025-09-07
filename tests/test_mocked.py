@@ -83,6 +83,26 @@ class TestAssignmentPRCreatorMocked(unittest.TestCase):
             ('/workspace/assignments/week-3', ['assignment-3'], []),
             ('/workspace/assignments/week-3/assignment-3', [], ['instructions.md']),
         ]
+    
+    def create_mock_assignment_walk_behavior(self, path_arg):
+        """Create proper os.walk mock behavior for different paths."""
+        if path_arg == '/workspace':
+            # Return the root structure
+            return [
+                ('/workspace', ['assignments'], []),
+                ('/workspace/assignments', ['assignment-1', 'assignment-2', 'week-3'], []),
+            ]
+        elif path_arg == '/workspace/assignments':
+            # Return the assignments directory structure  
+            return [
+                ('/workspace/assignments', ['assignment-1', 'assignment-2', 'week-3'], []),
+                ('/workspace/assignments/assignment-1', [], ['instructions.md']),
+                ('/workspace/assignments/assignment-2', [], ['instructions.md']),
+                ('/workspace/assignments/week-3', ['assignment-3'], []),
+                ('/workspace/assignments/week-3/assignment-3', [], ['instructions.md']),
+            ]
+        else:
+            return []
 
     def test_initialization(self):
         """Test proper initialization with environment variables."""
@@ -456,23 +476,32 @@ class TestAssignmentPRCreatorMocked(unittest.TestCase):
         """Test complete assignment processing workflow."""
         with patch.dict(os.environ, {'DRY_RUN': 'true'}):
             mock_getcwd.return_value = '/workspace'
-            self.mock_walk.return_value = self.create_mock_assignment_structure()
             
-            creator = AssignmentPRCreator()
+            # Set up mock walk behavior to handle nested calls
+            def mock_walk_side_effect(path):
+                from pathlib import Path
+                path_str = str(Path(path))
+                return self.create_mock_assignment_walk_behavior(path_str)
             
-            # Mock that no branches or PRs exist
-            creator.get_existing_branches = Mock(return_value=set())
-            creator.get_existing_pull_requests = Mock(return_value={})
-            creator.fetch_all_remote_branches = Mock(return_value=True)
-            creator.create_branch = Mock(return_value=True)
-            creator.create_readme = Mock(return_value=True)
-            creator.push_branches_to_remote = Mock(return_value=True)
-            creator.create_pull_request = Mock(return_value=True)
+            self.mock_walk.side_effect = mock_walk_side_effect
             
-            creator.process_assignments()
-            
-            # Verify all steps were called
-            creator.fetch_all_remote_branches.assert_called_once()
+            # Mock Path.exists() to return True for assignment directories
+            with patch('pathlib.Path.exists', return_value=True):
+                creator = AssignmentPRCreator()
+                
+                # Mock that no branches or PRs exist
+                creator.get_existing_branches = Mock(return_value=set())
+                creator.get_existing_pull_requests = Mock(return_value={})
+                creator.fetch_all_remote_branches = Mock(return_value=True)
+                creator.create_branch = Mock(return_value=True)
+                creator.create_readme = Mock(return_value=True)
+                creator.push_branches_to_remote = Mock(return_value=True)
+                creator.create_pull_request = Mock(return_value=True)
+
+                creator.process_assignments()
+
+                # Verify all steps were called
+                creator.fetch_all_remote_branches.assert_called_once()
             creator.get_existing_branches.assert_called_once()
             creator.get_existing_pull_requests.assert_called_once()
             
@@ -487,50 +516,70 @@ class TestAssignmentPRCreatorMocked(unittest.TestCase):
         """Test that existing branches are skipped during processing."""
         with patch.dict(os.environ, {'DRY_RUN': 'true'}):
             mock_getcwd.return_value = '/workspace'
-            self.mock_walk.return_value = self.create_mock_assignment_structure()
             
-            creator = AssignmentPRCreator()
+            # Set up mock walk behavior
+            def mock_walk_side_effect(path):
+                from pathlib import Path
+                path_str = str(Path(path))
+                return self.create_mock_assignment_walk_behavior(path_str)
             
-            # Mock that one branch already exists
-            existing_branches = {'assignments-assignment-1'}
-            creator.get_existing_branches = Mock(return_value=existing_branches)
-            creator.get_existing_pull_requests = Mock(return_value={})
-            creator.fetch_all_remote_branches = Mock(return_value=True)
-            creator.create_branch = Mock(return_value=True)
-            creator.create_readme = Mock(return_value=True)
-            creator.push_branches_to_remote = Mock(return_value=True)
-            creator.create_pull_request = Mock(return_value=True)
+            self.mock_walk.side_effect = mock_walk_side_effect
             
-            creator.process_assignments()
-            
-            # Should only process 2 assignments (skipping the existing one)
-            self.assertEqual(creator.create_branch.call_count, 2)
-            self.assertEqual(creator.create_readme.call_count, 2)
-            self.assertEqual(creator.create_pull_request.call_count, 2)
+            # Mock Path.exists() to return True for assignment directories
+            with patch('pathlib.Path.exists', return_value=True):
+                creator = AssignmentPRCreator()
+
+                # Mock that one branch already exists
+                existing_branches = {'assignments-assignment-1'}
+                creator.get_existing_branches = Mock(return_value=existing_branches)
+                creator.get_existing_pull_requests = Mock(return_value={})
+                creator.fetch_all_remote_branches = Mock(return_value=True)
+                creator.create_branch = Mock(return_value=True)
+                creator.create_readme = Mock(return_value=True)
+                creator.push_branches_to_remote = Mock(return_value=True)
+                creator.create_pull_request = Mock(return_value=True)
+
+                creator.process_assignments()
+
+                # Should only create 2 new branches (existing one is skipped for branch creation)
+                self.assertEqual(creator.create_branch.call_count, 2)
+                # Should create 2 READMEs (existing branch doesn't get README creation)
+                self.assertEqual(creator.create_readme.call_count, 2)
+                # Should create 3 PRs (all assignments get PRs, including existing branch with no PR)
+                self.assertEqual(creator.create_pull_request.call_count, 3)
 
     @patch('create_assignment_prs.os.getcwd')
     def test_process_assignments_skip_existing_prs(self, mock_getcwd):
         """Test that assignments with existing PRs are skipped."""
         with patch.dict(os.environ, {'DRY_RUN': 'true'}):
             mock_getcwd.return_value = '/workspace'
-            self.mock_walk.return_value = self.create_mock_assignment_structure()
             
-            creator = AssignmentPRCreator()
+            # Set up mock walk behavior
+            def mock_walk_side_effect(path):
+                from pathlib import Path
+                path_str = str(Path(path))
+                return self.create_mock_assignment_walk_behavior(path_str)
             
-            # Mock that one PR already exists
-            existing_prs = {'assignments-assignment-2': 'closed'}
-            creator.get_existing_branches = Mock(return_value=set())
-            creator.get_existing_pull_requests = Mock(return_value=existing_prs)
-            creator.fetch_all_remote_branches = Mock(return_value=True)
-            creator.create_branch = Mock(return_value=True)
-            creator.create_readme = Mock(return_value=True)
-            creator.push_branches_to_remote = Mock(return_value=True)
-            creator.create_pull_request = Mock(return_value=True)
+            self.mock_walk.side_effect = mock_walk_side_effect
             
-            creator.process_assignments()
-            
-            # Should only process 2 assignments (skipping the one with existing PR)
-            self.assertEqual(creator.create_branch.call_count, 2)
+            # Mock Path.exists() to return True for assignment directories
+            with patch('pathlib.Path.exists', return_value=True):
+                creator = AssignmentPRCreator()
+
+                # Mock that one PR already exists
+                existing_prs = {'assignments-assignment-2': 'closed'}
+                creator.get_existing_branches = Mock(return_value=set())
+                creator.get_existing_pull_requests = Mock(return_value=existing_prs)
+                creator.fetch_all_remote_branches = Mock(return_value=True)
+                creator.create_branch = Mock(return_value=True)
+                creator.create_readme = Mock(return_value=True)
+                creator.push_branches_to_remote = Mock(return_value=True)
+                creator.create_pull_request = Mock(return_value=True)
+
+                creator.process_assignments()
+
+                # Should only process 2 assignments (skipping the one with existing PR)
+                self.assertEqual(creator.create_branch.call_count, 2)
             self.assertEqual(creator.create_readme.call_count, 2)
             self.assertEqual(creator.create_pull_request.call_count, 2)
 

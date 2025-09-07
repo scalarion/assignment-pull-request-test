@@ -448,7 +448,7 @@ This pull request contains the setup for the assignment located at
             List of relative paths to assignment folders
         """
         assignments = []
-        workspace_root = Path(".")
+        workspace_root = Path(os.getcwd())
 
         print(
             f"Scanning workspace for assignment roots matching "

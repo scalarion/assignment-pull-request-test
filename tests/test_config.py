@@ -198,7 +198,7 @@ class TestScenarios:
             'existing_branches': {'main', 'assignments-assignment-1'},
             'existing_prs': {},
             'expected_new_branches': 1,  # Only assignment-2 should be created
-            'expected_new_prs': 1
+            'expected_new_prs': 2       # PRs for both assignment-1 (existing branch) and assignment-2 (new branch)
         }
     
     @staticmethod
