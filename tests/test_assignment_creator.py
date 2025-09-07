@@ -104,8 +104,10 @@ class TestAssignmentDiscovery(unittest.TestCase):
         )
         
         self.assertEqual(len(assignments), 2)
-        self.assertIn('week-1/assignment-1', assignments)
-        self.assertIn('week-2/assignment-2', assignments)
+        # Normalize paths for cross-platform compatibility
+        normalized_assignments = [assignment.replace('\\', '/') for assignment in assignments]
+        self.assertIn('week-1/assignment-1', normalized_assignments)
+        self.assertIn('week-2/assignment-2', normalized_assignments)
 
     def test_assignment_discovery_multiple_roots(self):
         """Test discovery with multiple assignment root patterns."""
@@ -133,9 +135,11 @@ class TestAssignmentDiscovery(unittest.TestCase):
         )
         
         self.assertEqual(len(assignments), 3)
-        self.assertIn('assignments/assignment-1', assignments)
-        self.assertIn('homework/hw-1', assignments)
-        self.assertIn('labs/lab-1', assignments)
+        # Normalize paths for cross-platform compatibility
+        normalized_assignments = [assignment.replace('\\', '/') for assignment in assignments]
+        self.assertIn('assignments/assignment-1', normalized_assignments)
+        self.assertIn('homework/hw-1', normalized_assignments)
+        self.assertIn('labs/lab-1', normalized_assignments)
 
     def test_empty_assignments_folder(self):
         """Test handling of empty assignments folder."""
