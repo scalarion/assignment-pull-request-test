@@ -11,7 +11,6 @@ import re
 import sys
 import json
 import subprocess
-import base64
 from pathlib import Path
 from typing import Dict, List, Set
 from github import Github
