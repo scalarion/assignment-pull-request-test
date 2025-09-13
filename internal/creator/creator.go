@@ -39,6 +39,44 @@ type Creator struct {
 	pendingPushes       []string
 }
 
+// getEnvWithDefault returns the environment variable value or a default value if not set
+func getEnvWithDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
+
+// parseRegexPatterns parses a comma-separated string of regex patterns into a slice
+// Supports escaping commas with \, to allow commas within regex patterns
+func parseRegexPatterns(patterns string) []string {
+	if patterns == "" {
+		return []string{}
+	}
+
+	// Replace escaped commas with a placeholder to preserve them
+	placeholder := "\x00ESCAPED_COMMA\x00"
+	patterns = strings.ReplaceAll(patterns, "\\,", placeholder)
+
+	// Split by unescaped commas and trim whitespace
+	parts := strings.Split(patterns, ",")
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed != "" {
+			// Restore escaped commas
+			restored := strings.ReplaceAll(trimmed, placeholder, ",")
+			result = append(result, restored)
+		}
+	}
+	return result
+}
+
+// isDryRun checks if dry run mode is enabled
+func isDryRun(dryRunStr string) bool {
+	return strings.ToLower(dryRunStr) == "true" || dryRunStr == "1" || strings.ToLower(dryRunStr) == "yes"
+}
+
 // hasNamedGroups checks if a compiled regex pattern has at least one named group
 func hasNamedGroups(regex *regexp.Regexp) bool {
 	names := regex.SubexpNames()
@@ -115,37 +153,6 @@ func New() (*Creator, error) {
 	}
 
 	return creator, nil
-}
-
-// getEnvWithDefault returns the environment variable value or a default value if not set
-func getEnvWithDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
-}
-
-// parseRegexPatterns parses a comma-separated string of regex patterns into a slice
-func parseRegexPatterns(patterns string) []string {
-	if patterns == "" {
-		return []string{}
-	}
-
-	// Split by comma and trim whitespace
-	parts := strings.Split(patterns, ",")
-	result := make([]string, 0, len(parts))
-	for _, part := range parts {
-		trimmed := strings.TrimSpace(part)
-		if trimmed != "" {
-			result = append(result, trimmed)
-		}
-	}
-	return result
-}
-
-// isDryRun checks if dry run mode is enabled
-func isDryRun(dryRunStr string) bool {
-	return strings.ToLower(dryRunStr) == "true" || dryRunStr == "1" || strings.ToLower(dryRunStr) == "yes"
 }
 
 // extractBranchName tries to match assignment path against patterns and extract branch name

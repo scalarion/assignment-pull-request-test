@@ -439,6 +439,21 @@ func TestParseRegexPatterns(t *testing.T) {
 			input:    "^assignments$,,^homework$",
 			expected: []string{"^assignments$", "^homework$"},
 		},
+		{
+			name:     "pattern with escaped comma",
+			input:    `^(?P<options>a\,b\,c)$`,
+			expected: []string{"^(?P<options>a,b,c)$"},
+		},
+		{
+			name:     "multiple patterns with escaped commas",
+			input:    `^(?P<list>a\,b)$,^(?P<items>x\,y\,z)$`,
+			expected: []string{"^(?P<list>a,b)$", "^(?P<items>x,y,z)$"},
+		},
+		{
+			name:     "mixed escaped and unescaped commas",
+			input:    `^(?P<options>a\,b)$,^homework$,^(?P<choices>x\,y)$`,
+			expected: []string{"^(?P<options>a,b)$", "^homework$", "^(?P<choices>x,y)$"},
+		},
 	}
 
 	for _, tt := range tests {
