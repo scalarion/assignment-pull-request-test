@@ -1,5 +1,26 @@
 # CS101 - Week 2: Sorting Algorithms
 
+## Assignment Overview
+
+Implement and analyze different sorting algorithms. The visualization below
+shows the expected behavior:
+
+![Sorting Visualization](static/sorting-visualization.png)
+
+## Learning Objectives
+
+- Understand different sorting approaches
+- Analyze time and space complexity
+- Implement bubble sort, merge sort, and quicksort
+
+## Requirements
+
+1. Implement all three sorting algorithms
+2. Create performance benchmarks
+3. Document your findings
+
+The visualization above demonstrates how the sorting process should work.
+
 ## Course Information
 
 - **Course**: CS101 - Introduction to Computer Science
