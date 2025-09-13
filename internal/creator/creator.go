@@ -313,7 +313,7 @@ Please add your submission guidelines here.
 func (c *Creator) createPullRequest(assignmentPath, branchName string) error {
 	caser := cases.Title(language.English)
 	title := fmt.Sprintf("Assignment: %s", caser.String(strings.ReplaceAll(assignmentPath, "/", " - ")))
-	
+
 	// Try to read instructions.md file for PR body content
 	body, err := c.createPullRequestBody(assignmentPath)
 	if err != nil {
@@ -333,7 +333,7 @@ func (c *Creator) createPullRequest(assignmentPath, branchName string) error {
 func (c *Creator) createPullRequestBody(assignmentPath string) (string, error) {
 	// Try to find instructions.md in the assignment directory
 	instructionsPath := c.findInstructionsFile(assignmentPath)
-	
+
 	if instructionsPath != "" {
 		content, err := c.readAndProcessInstructions(instructionsPath, assignmentPath)
 		if err != nil {
@@ -343,7 +343,7 @@ func (c *Creator) createPullRequestBody(assignmentPath string) (string, error) {
 			return content, nil
 		}
 	}
-	
+
 	// Fall back to generic template
 	return c.createGenericPullRequestBody(assignmentPath), nil
 }
@@ -354,13 +354,13 @@ func (c *Creator) findInstructionsFile(assignmentPath string) string {
 		filepath.Join(assignmentPath, "instructions.md"),
 		filepath.Join(assignmentPath, "INSTRUCTIONS.md"),
 	}
-	
+
 	for _, candidate := range candidates {
 		if _, err := os.Stat(candidate); err == nil {
 			return candidate
 		}
 	}
-	
+
 	return ""
 }
 
@@ -370,9 +370,9 @@ func (c *Creator) readAndProcessInstructions(instructionsPath, assignmentPath st
 	if err != nil {
 		return "", fmt.Errorf("failed to read instructions file: %w", err)
 	}
-	
+
 	processedContent := c.rewriteImageLinks(string(content), assignmentPath)
-	
+
 	// Wrap the content in a nice pull request format
 	wrappedContent := fmt.Sprintf(`## Assignment Instructions
 
@@ -383,7 +383,7 @@ func (c *Creator) readAndProcessInstructions(instructionsPath, assignmentPath st
 *This pull request was automatically created by the Assignment Pull Request Creator action.*
 *Original instructions from: %s*
 `, processedContent, filepath.Base(instructionsPath))
-	
+
 	return wrappedContent, nil
 }
 
@@ -391,31 +391,31 @@ func (c *Creator) readAndProcessInstructions(instructionsPath, assignmentPath st
 func (c *Creator) rewriteImageLinks(content, assignmentPath string) string {
 	// Regex to match markdown image syntax: ![alt text](relative/path/to/image)
 	imageRegex := regexp.MustCompile(`!\[([^\]]*)\]\(([^)]+)\)`)
-	
+
 	return imageRegex.ReplaceAllStringFunc(content, func(match string) string {
 		submatches := imageRegex.FindStringSubmatch(match)
 		if len(submatches) != 3 {
 			return match // Return original if parsing fails
 		}
-		
+
 		altText := submatches[1]
 		imagePath := submatches[2]
-		
+
 		// Skip if it's already an absolute URL
 		if strings.HasPrefix(imagePath, "http://") || strings.HasPrefix(imagePath, "https://") {
 			return match
 		}
-		
+
 		// Skip if it's already an absolute path from repo root
 		if strings.HasPrefix(imagePath, "/") {
 			return match
 		}
-		
+
 		// Rewrite relative path to be relative to repo root
 		rewrittenPath := filepath.Join(assignmentPath, imagePath)
 		// Normalize path separators for cross-platform compatibility
 		rewrittenPath = strings.ReplaceAll(rewrittenPath, "\\", "/")
-		
+
 		return fmt.Sprintf("![%s](%s)", altText, rewrittenPath)
 	})
 }

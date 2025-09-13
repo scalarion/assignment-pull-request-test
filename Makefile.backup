@@ -87,10 +87,6 @@ clean:
 	@rm -rf ./bin
 	@rm -rf $(TEST_COVERAGE_DIR)
 
-# Create coverage directory
-$(TEST_COVERAGE_DIR):
-	@mkdir -p $(TEST_COVERAGE_DIR)
-
 ## coverage: Run tests with coverage
 coverage: $(TEST_COVERAGE_DIR)
 	@echo "Running tests with coverage..."
@@ -112,6 +108,10 @@ coverage-show: $(TEST_COVERAGE_DIR)
 	$(GOTEST) $(TEST_FLAGS) -coverprofile=$(TEST_COVERAGE_FILE) ./...
 	@echo "Detailed coverage report:"
 	$(GOCMD) tool cover -func=$(TEST_COVERAGE_FILE)
+
+# Create coverage directory
+$(TEST_COVERAGE_DIR):
+	@mkdir -p $(TEST_COVERAGE_DIR)
 
 ## lint: Run linter (requires golangci-lint)
 lint:
@@ -187,45 +187,34 @@ help:
 	@echo "Available targets:"
 	@echo ""
 	@echo "Build commands:"
-	@echo "  build         Build the binary"
-	@echo "  install       Install the binary to GOPATH/bin"
-	@echo "  clean         Clean build artifacts"
+	@sed -n 's/^## build.*:/  &/p' $(MAKEFILE_LIST) | sed 's/##//' | sed 's/://'
+	@sed -n 's/^## install.*:/  &/p' $(MAKEFILE_LIST) | sed 's/##//' | sed 's/://'
+	@sed -n 's/^## clean.*:/  &/p' $(MAKEFILE_LIST) | sed 's/##//' | sed 's/://'
 	@echo ""
 	@echo "Test commands:"
-	@echo "  test          Run all tests"
-	@echo "  test-unit     Run unit tests only (internal packages)"
-	@echo "  test-integration Run integration tests"
-	@echo "  test-creator  Run creator package tests"
-	@echo "  test-git      Run git package tests"
-	@echo "  test-github   Run github package tests"
-	@echo "  test-testutil Run testutil package tests"
-	@echo "  test-short    Run short tests (skip long-running tests)"
-	@echo "  bench         Run benchmarks"
+	@sed -n 's/^## test.*:/  &/p' $(MAKEFILE_LIST) | sed 's/##//' | sed 's/://'
+	@sed -n 's/^## bench.*:/  &/p' $(MAKEFILE_LIST) | sed 's/##//' | sed 's/://'
 	@echo ""
 	@echo "Coverage commands:"
-	@echo "  coverage      Run tests with coverage"
-	@echo "  coverage-html Generate HTML coverage report"
-	@echo "  coverage-show Show detailed coverage in terminal"
+	@sed -n 's/^## coverage.*:/  &/p' $(MAKEFILE_LIST) | sed 's/##//' | sed 's/://'
 	@echo ""
 	@echo "Code quality commands:"
-	@echo "  fmt           Format Go code"
-	@echo "  vet           Run go vet"
-	@echo "  lint          Run linter (requires golangci-lint)"
-	@echo "  check         Run all checks (fmt, vet, lint, test)"
-	@echo "  check-quick   Run quick checks (fmt, vet, test-short)"
+	@sed -n 's/^## fmt.*:/  &/p' $(MAKEFILE_LIST) | sed 's/##//' | sed 's/://'
+	@sed -n 's/^## vet.*:/  &/p' $(MAKEFILE_LIST) | sed 's/##//' | sed 's/://'
+	@sed -n 's/^## lint.*:/  &/p' $(MAKEFILE_LIST) | sed 's/##//' | sed 's/://'
+	@sed -n 's/^## check.*:/  &/p' $(MAKEFILE_LIST) | sed 's/##//' | sed 's/://'
 	@echo ""
 	@echo "Dependency commands:"
-	@echo "  deps          Download dependencies"
+	@sed -n 's/^## deps.*:/  &/p' $(MAKEFILE_LIST) | sed 's/##//' | sed 's/://'
 	@echo ""
 	@echo "Run commands:"
-	@echo "  run           Build and run with dry-run mode"
-	@echo "  run-live      Build and run in live mode (requires real environment variables)"
+	@sed -n 's/^## run.*:/  &/p' $(MAKEFILE_LIST) | sed 's/##//' | sed 's/://'
 	@echo ""
 	@echo "Docker commands:"
-	@echo "  docker-build  Build Docker image (if Dockerfile exists)"
+	@sed -n 's/^## docker.*:/  &/p' $(MAKEFILE_LIST) | sed 's/##//' | sed 's/://'
 	@echo ""
 	@echo "CI/CD commands:"
-	@echo "  ci            Run CI pipeline (for GitHub Actions)"
+	@sed -n 's/^## ci.*:/  &/p' $(MAKEFILE_LIST) | sed 's/##//' | sed 's/://'
 
 # Version information
 version:
