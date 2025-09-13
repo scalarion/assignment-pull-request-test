@@ -52,14 +52,14 @@ GITHUB_TOKEN=your_token GITHUB_REPOSITORY=owner/repo make run-live
 
 ### Environment Variables
 
-| Variable                 | Required | Default                        | Description                                                               |
-| ------------------------ | -------- | ------------------------------ | ------------------------------------------------------------------------- |
-| `GITHUB_TOKEN`           | ✅       | -                              | GitHub personal access token                                              |
-| `GITHUB_REPOSITORY`      | ✅       | -                              | Repository name (`owner/repo`)                                            |
-| `ASSIGNMENTS_ROOT_REGEX` | ❌       | `^assignments$`                | Comma-separated patterns for assignment root directories (use `\,` to escape literal commas) |
+| Variable                 | Required | Default                        | Description                                                                                                   |
+| ------------------------ | -------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| `GITHUB_TOKEN`           | ✅       | -                              | GitHub personal access token                                                                                  |
+| `GITHUB_REPOSITORY`      | ✅       | -                              | Repository name (`owner/repo`)                                                                                |
+| `ASSIGNMENTS_ROOT_REGEX` | ❌       | `^assignments$`                | Comma-separated patterns for assignment root directories (use `\,` to escape literal commas)                  |
 | `ASSIGNMENT_REGEX`       | ❌       | `^(?P<branch>assignment-\d+)$` | Comma-separated patterns with capturing groups for branch name extraction (use `\,` to escape literal commas) |
-| `DEFAULT_BRANCH`         | ❌       | `main`                         | Default branch name                                                       |
-| `DRY_RUN`                | ❌       | `false`                        | Enable simulation mode                                                    |
+| `DEFAULT_BRANCH`         | ❌       | `main`                         | Default branch name                                                                                           |
+| `DRY_RUN`                | ❌       | `false`                        | Enable simulation mode                                                                                        |
 
 ### GitHub Action Inputs
 
