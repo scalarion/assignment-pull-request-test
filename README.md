@@ -82,6 +82,7 @@ internal/ # Private packages │ ├── creator/ # Business logic │ ├─�
 operations\
 │ └── github/ # GitHub API client ├── bin/ # Built binaries ├── test/ # Test
 fixtures ├── examples/ # Usage examples ├── Makefile # Build commands └── go.mod
+
 # Go module
 
 ````
