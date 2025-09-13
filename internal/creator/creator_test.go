@@ -674,7 +674,19 @@ func TestExtractBranchNameAlphabeticalOrdering(t *testing.T) {
 			expectedBranch: "cs102-2024-week-5-assignment-3", // course, year (alphabetical) + unnamed groups (order)
 			expectedMatch:  true,
 		},
+		{
+			name:           "mixed groups with specific naming order",
+			assignmentPath: "group1/group2/group3/group4",
+			expectedBranch: "group4-group2-group1-group3", // 01named (group4), 02named (group2), then unnamed in order (group1, group3)
+			expectedMatch:  true,
+		},
 	}
+
+	// Add pattern for the specific naming order test
+	creator.assignmentPatterns = append(creator.assignmentPatterns,
+		// Pattern with groups: 1st unnamed, 2nd named (02prefix), 3rd unnamed, 4th named (01prefix)
+		regexp.MustCompile(`^([^/]+)/(?P<02named>[^/]+)/([^/]+)/(?P<01named>[^/]+)$`),
+	)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
