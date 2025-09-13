@@ -34,12 +34,44 @@ Before applying any configuration to your repository:
 ### Quick Test Commands
 
 ```bash
-# Local dry-run test
+# Local dry-run test with default pattern (named groups)
 DRY_RUN=true GITHUB_TOKEN=fake_token GITHUB_REPOSITORY=owner/repo ./bin/assignment-pr-creator
 
-# Test with your specific patterns
+# Test with named groups pattern
 DRY_RUN=true GITHUB_TOKEN=fake_token GITHUB_REPOSITORY=owner/repo \
-ASSIGNMENTS_ROOT_REGEX="^your-pattern$" \
-ASSIGNMENT_REGEX="^your-assignment-pattern$" \
+ASSIGNMENTS_ROOT_REGEX="^assignments$" \
+ASSIGNMENT_REGEX="^(?P<branch>assignment-\d+)$" \
+./bin/assignment-pr-creator
+
+# Test with unnamed groups pattern  
+DRY_RUN=true GITHUB_TOKEN=fake_token GITHUB_REPOSITORY=owner/repo \
+ASSIGNMENTS_ROOT_REGEX="^homework$" \
+ASSIGNMENT_REGEX="^homework/(hw-\d+)$" \
+./bin/assignment-pr-creator
+
+# Test with multiple patterns (specific before general)
+DRY_RUN=true GITHUB_TOKEN=fake_token GITHUB_REPOSITORY=owner/repo \
+ASSIGNMENTS_ROOT_REGEX="^assignments$,^homework$" \
+ASSIGNMENT_REGEX="^homework/(hw-\d+)$,^(?P<branch>assignment-\d+)$" \
 ./bin/assignment-pr-creator
 ```
+
+## Pattern Examples
+
+### Named Groups (Recommended)
+
+Use `(?P<name>...)` for clear, readable patterns:
+
+- `^(?P<branch>assignment-\d+)$` - Simple assignments
+- `^(?P<course>[^/]+)/(?P<week>week-\d+)/(?P<type>hw-\d+)$` - Course structure
+
+### Unnamed Groups
+
+Use `(...)` for simpler patterns:
+
+- `^homework/(hw-\d+)$` - Extract homework number only
+- `^(projects)/(semester-\d+)/(assignment-[^/]+)$` - Multiple groups
+
+### Pattern Ordering
+
+⚠️ **Important**: Order patterns from specific to general to avoid conflicts!

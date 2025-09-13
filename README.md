@@ -52,14 +52,14 @@ GITHUB_TOKEN=your_token GITHUB_REPOSITORY=owner/repo make run-live
 
 ### Environment Variables
 
-| Variable                 | Required | Default                        | Description                                                      |
-| ------------------------ | -------- | ------------------------------ | ---------------------------------------------------------------- |
-| `GITHUB_TOKEN`           | ✅       | -                              | GitHub personal access token                                     |
-| `GITHUB_REPOSITORY`      | ✅       | -                              | Repository name (`owner/repo`)                                   |
-| `ASSIGNMENTS_ROOT_REGEX` | ❌       | `^assignments$`                | Comma-separated patterns for assignment root directories         |
-| `ASSIGNMENT_REGEX`       | ❌       | `^(?P<branch>assignment-\d+)$` | Comma-separated patterns with named groups for branch extraction |
-| `DEFAULT_BRANCH`         | ❌       | `main`                         | Default branch name                                              |
-| `DRY_RUN`                | ❌       | `false`                        | Enable simulation mode                                           |
+| Variable                 | Required | Default                        | Description                                                               |
+| ------------------------ | -------- | ------------------------------ | ------------------------------------------------------------------------- |
+| `GITHUB_TOKEN`           | ✅       | -                              | GitHub personal access token                                              |
+| `GITHUB_REPOSITORY`      | ✅       | -                              | Repository name (`owner/repo`)                                            |
+| `ASSIGNMENTS_ROOT_REGEX` | ❌       | `^assignments$`                | Comma-separated patterns for assignment root directories                  |
+| `ASSIGNMENT_REGEX`       | ❌       | `^(?P<branch>assignment-\d+)$` | Comma-separated patterns with capturing groups for branch name extraction |
+| `DEFAULT_BRANCH`         | ❌       | `main`                         | Default branch name                                                       |
+| `DRY_RUN`                | ❌       | `false`                        | Enable simulation mode                                                    |
 
 ### GitHub Action Inputs
 
@@ -170,8 +170,12 @@ ASSIGNMENTS_ROOT_REGEX="^(assignments|homework|labs)$"
 
 ### Assignment Extraction Patterns
 
-The assignment regex now supports **named groups** for extracting custom branch
-names from paths:
+The assignment regex now supports **named groups** and **unnamed groups** for
+extracting custom branch names from paths:
+
+#### Named Groups (Preferred)
+
+Use `(?P<name>...)` syntax for clear, readable patterns:
 
 ```bash
 # Simple extraction - path: assignment-01 → branch: assignment-01
@@ -182,17 +186,44 @@ ASSIGNMENT_REGEX="^[^/]+/(?P<subject>[^/]+)/\d+-(?P<type>assignment)-(?P<number>
 
 # Complex extraction - path: course/module-1/hw-03 → branch: module-1-hw-03
 ASSIGNMENT_REGEX="^[^/]+/(?P<module>[^/]+)/(?P<assignment>[^/]+)$"
+```
 
-# Multiple patterns for different structures
-ASSIGNMENT_REGEX="^(?P<branch>assignment-\d+)$,^(?P<course>[^/]+)/(?P<week>week-\d+)/(?P<type>hw)-(?P<number>\d+)$"
+#### Unnamed Groups (Fallback)
+
+Use standard `(...)` syntax when named groups aren't needed:
+
+```bash
+# Single unnamed group - path: homework/hw-5 → branch: hw-5
+ASSIGNMENT_REGEX="^homework/(hw-\d+)$"
+
+# Multiple unnamed groups - path: projects/semester-1/week-3/assignment-variables → branch: projects-semester-1-week-3-assignment-variables
+ASSIGNMENT_REGEX="^(projects)/(semester-\d+)/(week-\d+)/(assignment-[^/]+)$"
+
+# Mixed patterns for different structures
+ASSIGNMENT_REGEX="^(?P<branch>assignment-\d+)$,^(assignment)-(\d+)$"
+```
+
+#### Pattern Priority and Ordering
+
+⚠️ **Important**: Pattern order matters! More specific patterns should come
+first:
+
+```bash
+# ❌ WRONG: General pattern matches before specific one
+ASSIGNMENT_REGEX="^(?P<course>[^/]+)/(hw|lab)-(\d+)$,^homework/(hw-\d+)$"
+
+# ✅ CORRECT: Specific pattern matches first
+ASSIGNMENT_REGEX="^homework/(hw-\d+)$,^(?P<course>[^/]+)/(hw|lab)-(\d+)$"
 ```
 
 **How it works:**
 
-- Use `(?P<name>...)` to create named capture groups
-- All named groups are joined with hyphens to create the branch name
+- Use `(?P<name>...)` for named capture groups (preferred for readability)
+- Use `(...)` for unnamed capture groups (simpler for basic patterns)
+- **Named groups take priority** when both are present in a pattern
+- All capturing groups are joined with hyphens to create the branch name
 - Branch names are automatically sanitized (lowercase, special chars → hyphens)
-- First matching pattern wins
+- **First matching pattern wins** - order patterns from specific to general
 
 ### Testing Patterns
 
@@ -200,10 +231,16 @@ ASSIGNMENT_REGEX="^(?P<branch>assignment-\d+)$,^(?P<course>[^/]+)/(?P<week>week-
 # Safe testing with dry-run
 DRY_RUN=true GITHUB_TOKEN=dummy GITHUB_REPOSITORY=test/repo make run
 
-# Test simple extraction
+# Test named groups extraction
 DRY_RUN=true \
 ASSIGNMENTS_ROOT_REGEX="^assignments$" \
 ASSIGNMENT_REGEX="^(?P<branch>assignment-\d+)$" \
+make run
+
+# Test unnamed groups extraction  
+DRY_RUN=true \
+ASSIGNMENTS_ROOT_REGEX="^homework$" \
+ASSIGNMENT_REGEX="^homework/(hw-\d+)$" \
 make run
 
 # Test complex path extraction (e.g., 20-assignments/CSS/01-assignment-01 → css-assignment-01)
@@ -212,10 +249,16 @@ ASSIGNMENTS_ROOT_REGEX="^20-assignments$" \
 ASSIGNMENT_REGEX="^20-assignments/\d+-(?P<subject>[^/]+)/\d+-(?P<assignment>[^/]+)$" \
 make run
 
-# Test multiple patterns with comma separation
+# Test mixed named and unnamed groups
+DRY_RUN=true \
+ASSIGNMENTS_ROOT_REGEX="^courses$" \
+ASSIGNMENT_REGEX="^(?P<course>[^/]+)/(semester-\d+)/(?P<assignment>assignment-[^/]+)$" \
+make run
+
+# Test multiple patterns with comma separation (specific first!)
 DRY_RUN=true \
 ASSIGNMENTS_ROOT_REGEX="^assignments$,^homework$,^labs$" \
-ASSIGNMENT_REGEX="^(?P<branch>assignment-\d+)$,^(?P<course>[^/]+)/(?P<type>hw)-(?P<number>\d+)$" \
+ASSIGNMENT_REGEX="^homework/(hw-\d+)$,^(?P<branch>assignment-\d+)$,^(?P<course>[^/]+)/(?P<type>hw)-(?P<number>\d+)$" \
 make run
 ```
 

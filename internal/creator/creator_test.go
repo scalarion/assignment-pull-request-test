@@ -178,16 +178,20 @@ func TestRegexValidation(t *testing.T) {
 			shouldFail:      false,
 		},
 		{
-			name:             "invalid regex without named groups",
-			assignmentRegex:  `^assignment-\d+$`,
-			shouldFail:       true,
-			expectedErrorMsg: "must contain at least one named group",
+			name:            "valid regex with unnamed groups",
+			assignmentRegex: `^(assignment)-(\d+)$`,
+			shouldFail:      false,
 		},
 		{
-			name:             "invalid regex with only unnamed groups",
-			assignmentRegex:  `^(assignment)-(\d+)$`,
+			name:            "valid regex with mixed named and unnamed groups",
+			assignmentRegex: `^(?P<type>assignment)-(group-\d+)-(\d+)$`,
+			shouldFail:      false,
+		},
+		{
+			name:             "invalid regex without any capturing groups",
+			assignmentRegex:  `^assignment-\d+$`,
 			shouldFail:       true,
-			expectedErrorMsg: "must contain at least one named group",
+			expectedErrorMsg: "must contain at least one capturing group",
 		},
 	}
 
@@ -281,6 +285,65 @@ func TestHasNamedGroups(t *testing.T) {
 			result := hasNamedGroups(regex)
 			if result != tt.expected {
 				t.Errorf("hasNamedGroups('%s') = %t, expected %t", tt.pattern, result, tt.expected)
+			}
+		})
+	}
+}
+
+// TestHasCapturingGroups tests the hasCapturingGroups helper function
+func TestHasCapturingGroups(t *testing.T) {
+	tests := []struct {
+		name     string
+		pattern  string
+		expected bool
+	}{
+		{
+			name:     "pattern with named groups",
+			pattern:  `^(?P<type>assignment)-(?P<number>\d+)$`,
+			expected: true,
+		},
+		{
+			name:     "pattern with single named group",
+			pattern:  `^(?P<branch>hw-\d+)$`,
+			expected: true,
+		},
+		{
+			name:     "pattern with unnamed groups",
+			pattern:  `^(assignment)-(\d+)$`,
+			expected: true,
+		},
+		{
+			name:     "pattern with mixed named and unnamed groups",
+			pattern:  `^(?P<type>assignment)-(group-\d+)-(?P<number>\d+)$`,
+			expected: true,
+		},
+		{
+			name:     "pattern without any groups",
+			pattern:  `^assignment-\d+$`,
+			expected: false,
+		},
+		{
+			name:     "pattern with non-capturing groups",
+			pattern:  `^(?:assignment)-(?:\d+)$`,
+			expected: false,
+		},
+		{
+			name:     "empty pattern",
+			pattern:  ``,
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			regex, err := regexp.Compile(tt.pattern)
+			if err != nil {
+				t.Fatalf("Failed to compile regex '%s': %v", tt.pattern, err)
+			}
+
+			result := hasCapturingGroups(regex)
+			if result != tt.expected {
+				t.Errorf("hasCapturingGroups('%s') = %t, expected %t", tt.pattern, result, tt.expected)
 			}
 		})
 	}
@@ -471,6 +534,76 @@ func TestExtractBranchName(t *testing.T) {
 			name:           "course structure",
 			assignmentPath: "test/fixtures/courses/CS101/week-02/assignment-sorting",
 			expectedBranch: "cs101-week-02-assignment-sorting", // Implementation converts to lowercase
+			expectedMatch:  true,
+		},
+		{
+			name:           "no match",
+			assignmentPath: "random/path/not/matching",
+			expectedBranch: "",
+			expectedMatch:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			branch, matched := creator.extractBranchName(tt.assignmentPath)
+
+			if matched != tt.expectedMatch {
+				t.Errorf("Expected match=%t, got=%t", tt.expectedMatch, matched)
+			}
+
+			if branch != tt.expectedBranch {
+				t.Errorf("Expected branch=%s, got=%s", tt.expectedBranch, branch)
+			}
+		})
+	}
+}
+
+// TestExtractBranchNameWithUnnamedGroups tests branch name extraction with unnamed capturing groups
+func TestExtractBranchNameWithUnnamedGroups(t *testing.T) {
+	// Create a test creator with patterns using unnamed groups
+	// Note: More specific patterns should come first to avoid conflicts
+	creator := &Creator{
+		assignmentPatterns: []*regexp.Regexp{
+			// Unnamed groups pattern: (type)-(number)
+			regexp.MustCompile(`^(assignment)-(\d+)$`),
+			// Single unnamed group - match only the relevant part (SPECIFIC - must come before general course pattern)
+			regexp.MustCompile(`^homework/(hw-\d+)$`),
+			// Mixed named and unnamed: named-unnamed-named (GENERAL - comes after specific patterns)
+			regexp.MustCompile(`^(?P<course>[^/]+)/(hw|lab)-(\d+)$`),
+			// Multiple unnamed groups
+			regexp.MustCompile(`^(projects)/(semester-\d+)/(week-\d+)/(assignment-[^/]+)$`),
+		},
+	}
+
+	tests := []struct {
+		name           string
+		assignmentPath string
+		expectedBranch string
+		expectedMatch  bool
+	}{
+		{
+			name:           "unnamed groups: assignment-number",
+			assignmentPath: "assignment-1",
+			expectedBranch: "assignment-1",
+			expectedMatch:  true,
+		},
+		{
+			name:           "mixed groups: course/hw-number",
+			assignmentPath: "CS101/hw-2",
+			expectedBranch: "cs101", // Only named group used when both named and unnamed exist
+			expectedMatch:  true,
+		},
+		{
+			name:           "multiple unnamed groups",
+			assignmentPath: "projects/semester-1/week-3/assignment-variables",
+			expectedBranch: "projects-semester-1-week-3-assignment-variables",
+			expectedMatch:  true,
+		},
+		{
+			name:           "single unnamed group",
+			assignmentPath: "homework/hw-5",
+			expectedBranch: "hw-5",
 			expectedMatch:  true,
 		},
 		{

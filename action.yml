@@ -12,7 +12,7 @@ inputs:
     required: false
     default: "^assignments$"
   assignment-regex:
-    description: "Comma-separated list of regular expressions to match assignment paths and extract branch names using named groups. Use (?P<branch>...) to capture the branch name."
+    description: "Comma-separated list of regular expressions to match assignment paths and extract branch names using capturing groups. Use (?P<name>...) for named groups or (...) for unnamed groups. Named groups take priority when both are present."
     required: false
     default: '^(?P<branch>assignment-\d+)$'
   github-token:

@@ -35,7 +35,10 @@ jobs:
         uses: majikmate/assignment-pull-request@main # or specific version tag
         with:
           assignments-root-regex: "^assignments$"
-          assignment-regex: '^assignment-\d+$'
+          assignment-regex: '^(?P<branch>assignment-\d+)$' # Named groups (recommended)
+          # Alternatives:
+          # assignment-regex: '^homework/(hw-\d+)$'  # Unnamed groups
+          # assignment-regex: '^homework/(hw-\d+)$,^(?P<branch>assignment-\d+)$'  # Multiple patterns
           default-branch: "main"
           dry-run: ${{ inputs.dry-run || true }} # Default to dry-run for safety
           github-token: ${{ secrets.GITHUB_TOKEN }}

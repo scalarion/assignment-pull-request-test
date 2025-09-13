@@ -51,6 +51,14 @@ func hasNamedGroups(regex *regexp.Regexp) bool {
 	return false
 }
 
+// hasCapturingGroups checks if a compiled regex pattern has at least one capturing group (named or unnamed)
+func hasCapturingGroups(regex *regexp.Regexp) bool {
+	names := regex.SubexpNames()
+	// SubexpNames() returns a slice where the first element is always an empty string
+	// for the entire match. If there are more elements, there are capturing groups
+	return len(names) > 1
+}
+
 // New creates a new Assignment PR Creator with environment variables
 func New() (*Creator, error) {
 	config := &Config{
@@ -86,9 +94,9 @@ func New() (*Creator, error) {
 			return nil, fmt.Errorf("invalid assignment regex '%s': %w", pattern, err)
 		}
 
-		// Sanity check: ensure the regex has named groups for branch name extraction
-		if !hasNamedGroups(compiled) {
-			return nil, fmt.Errorf("assignment regex '%s' must contain at least one named group (e.g., (?P<name>...)) to extract branch names", pattern)
+		// Sanity check: ensure the regex has capturing groups for branch name extraction
+		if !hasCapturingGroups(compiled) {
+			return nil, fmt.Errorf("assignment regex '%s' must contain at least one capturing group (e.g., (?P<name>...) or (...)) to extract branch names", pattern)
 		}
 
 		assignmentPatterns = append(assignmentPatterns, compiled)
@@ -148,47 +156,52 @@ func (c *Creator) extractBranchName(assignmentPath string) (string, bool) {
 			names := pattern.SubexpNames()
 			var branchParts []string
 
-			// Look for named groups and collect them
+			// Strategy 1: Prioritize named groups
+			hasNamedGroups := false
 			for i, name := range names {
 				if name != "" && i < len(matches) && matches[i] != "" {
 					part := strings.TrimSpace(matches[i])
 					if part != "" {
 						branchParts = append(branchParts, part)
+						hasNamedGroups = true
 					}
 				}
 			}
 
-			// If we found named groups, combine them
-			if len(branchParts) > 0 {
-				branchName := strings.Join(branchParts, "-")
-				// Sanitize the extracted branch name
-				branchName = strings.ToLower(branchName)
-				branchName = regexp.MustCompile(`[^a-z0-9\-]`).ReplaceAllString(branchName, "-")
-				branchName = regexp.MustCompile(`-+`).ReplaceAllString(branchName, "-")
-				branchName = strings.Trim(branchName, "-")
-				return branchName, true
+			// Strategy 2: If no named groups found, use all capturing groups (unnamed)
+			if !hasNamedGroups {
+				branchParts = nil                   // Reset
+				for i := 1; i < len(matches); i++ { // Skip index 0 (full match)
+					if matches[i] != "" {
+						part := strings.TrimSpace(matches[i])
+						if part != "" {
+							branchParts = append(branchParts, part)
+						}
+					}
+				}
 			}
 
-			// If no named groups found, look for "branch" specifically
+			// If we found any capturing groups, use them
+			if len(branchParts) > 0 {
+				branchName := strings.Join(branchParts, "-")
+				return c.sanitizeBranchName(branchName), true
+			}
+
+			// Strategy 3: Look for "branch" specifically (backward compatibility)
 			for i, name := range names {
 				if name == "branch" && i < len(matches) {
 					branchName := strings.TrimSpace(matches[i])
 					if branchName != "" {
-						branchName = strings.ToLower(branchName)
-						branchName = regexp.MustCompile(`[^a-z0-9\-]`).ReplaceAllString(branchName, "-")
-						branchName = regexp.MustCompile(`-+`).ReplaceAllString(branchName, "-")
-						branchName = strings.Trim(branchName, "-")
-						return branchName, true
+						return c.sanitizeBranchName(branchName), true
 					}
 				}
 			}
 
-			// Fall back to using the entire match
+			// Strategy 4: Fall back to using the entire match
 			if len(matches) > 0 {
 				branchName := strings.TrimSpace(matches[0])
 				if branchName != "" {
-					branchName = c.sanitizeBranchName(branchName)
-					return branchName, true
+					return c.sanitizeBranchName(branchName), true
 				}
 			}
 		}

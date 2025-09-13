@@ -8,41 +8,61 @@ integration tests, test utilities, and coverage reporting.
 
 ## Project Structure
 
-```
+````
 /workspaces/assignment-pull-request/
-├── internal/
-│   ├── creator/          # Core business logic
-│   │   ├── creator.go
-│   │   └── creator_test.go
-│   ├── git/              # Git operations
-│   │   ├── operations.go
-│   │   └── operations_test.go
-│   ├── github/           # GitHub API client
-│   │   ├── client.go
-│   │   └── client_test.go
-│   └── testutil/         # Test utilities
-│       ├── testutil.go
-│       └── testutil_test.go
-├── cmd/
-│   └── assignment-pr-creator/
-│       ├── main.go
-│       └── main_test.go  # Integration tests
-└── Makefile              # Enhanced build system
-```
+├─### Test Data Management
 
+### Fixtures
+
+- Located in `tests/fixtures/` (existing) and generated dynamically (testutil)
+- Realistic assignment structures that mirror production usage
+- Image files and complex directory hierarchies
+- **New**: Test patterns for unnamed groups and mixed group scenarios
+
+### Regex Helper Functions
+
+The creator package includes helper functions for regex analysis:
+
+```go
+// hasNamedGroups checks if a regex pattern contains named capturing groups
+func hasNamedGroups(pattern *regexp.Regexp) bool
+
+// hasCapturingGroups checks if a regex pattern contains any capturing groups (named or unnamed)
+func hasCapturingGroups(pattern *regexp.Regexp) bool
+````
+
+These helpers enable:
+
+- Validation that patterns have capturing groups for branch extraction
+- Testing different types of regex patterns (named vs unnamed groups)
+- Proper error handling for invalid patterns
+
+### Sample Contentl/
+
+│ ├── creator/ # Core business logic │ │ ├── creator.go │ │ └── creator_test.go
+│ ├── git/ # Git operations │ │ ├── operations.go │ │ └── operations_test.go │
+├── github/ # GitHub API client │ │ ├── client.go │ │ └── client_test.go │ └──
+testutil/ # Test utilities │ ├── testutil.go │ └── testutil_test.go ├── cmd/ │
+└── assignment-pr-creator/ │ ├── main.go │ └── main_test.go # Integration tests
+└── Makefile # Enhanced build system
+
+````
 ## Test Coverage
 
 ### Unit Tests
 
 **Creator Package** (`internal/creator/creator_test.go`)
 
-- **Coverage**: 24.3%
-- **Test Functions**: 8 test functions, 28 test cases
+- **Coverage**: 28.0%
+- **Test Functions**: 12 test functions, 40+ test cases
 - **Focus Areas**:
   - Configuration validation and environment handling
-  - Regex pattern parsing and branch name extraction
+  - Regex pattern parsing and validation for capturing groups
+  - Branch name extraction with **named groups** and **unnamed groups**
+  - Pattern priority and ordering (specific patterns before general ones)
   - Image link rewriting for GitHub repository URLs
   - Pull request body generation from assignment paths
+  - **New**: Comprehensive unnamed groups support and mixed group scenarios
 
 **Git Package** (`internal/git/operations_test.go`)
 
@@ -97,7 +117,7 @@ ws := testutil.NewTempWorkspace(t)
 ws.CreateStandardStructure()  // Creates realistic assignment structure
 restore := ws.ChangeToWorkspace()  // Changes working directory
 defer restore()
-```
+````
 
 ### Environment Management
 
@@ -182,6 +202,39 @@ make ci
 
 ## Test Patterns and Best Practices
 
+### Regex Pattern Validation
+
+All regex patterns undergo comprehensive validation:
+
+```go
+func TestRegexValidation(t *testing.T) {
+    tests := []struct {
+        name        string
+        pattern     string
+        shouldError bool
+    }{
+        {"valid_regex_with_named_groups", `^(?P<branch>assignment-\d+)$`, false},
+        {"valid_regex_with_unnamed_groups", `^(assignment)-(\d+)$`, false},
+        {"invalid_regex_without_any_capturing_groups", `^assignment-\d+$`, true},
+    }
+    // ...
+}
+```
+
+### Branch Name Extraction Testing
+
+Supports both named and unnamed capturing groups:
+
+```go
+func TestExtractBranchNameWithUnnamedGroups(t *testing.T) {
+    // Test cases include:
+    // - Single unnamed group: homework/hw-5 → hw-5
+    // - Multiple unnamed groups: projects/semester-1/week-3/assignment-variables → projects-semester-1-week-3-assignment-variables
+    // - Mixed named/unnamed groups (named groups take priority)
+    // - Pattern ordering considerations (specific before general)
+}
+```
+
 ### Dry-Run Testing
 
 All tests respect the dry-run mode to avoid side effects:
@@ -238,19 +291,23 @@ func TestBranchNameExtraction(t *testing.T) {
 
 ### Current Coverage
 
-- **Overall**: 37.8%
-- **Creator**: 24.3% (core business logic)
+- **Overall**: 39.8%
+- **Creator**: 28.0% (core business logic)
 - **Git**: 60.3% (command abstraction)
 - **GitHub**: 37.8% (API client)
-- **Testutil**: 78.7% (utility functions)
+- **Testutil**: 77.6% (utility functions)
 
 ### Coverage Analysis
 
 - **Integration tests** don't contribute to package coverage but validate
   end-to-end functionality
 - **Dry-run mode** allows comprehensive testing without external dependencies
-- **Error paths** are well-covered for robustness
-- **Edge cases** include empty inputs, invalid patterns, and malformed data
+- **Error paths** are well-covered for robustness, including regex validation
+  failures
+- **Edge cases** include empty inputs, invalid patterns, malformed data, and
+  pattern ordering conflicts
+- **New**: Unnamed groups extraction, mixed group scenarios, and pattern
+  priority testing
 
 ## Running Tests
 
