@@ -2,25 +2,6 @@
     "name": "Assignment Pull Request Creator",
     "image": "ghcr.io/majikmate/classroom-codespace-image:latest",
 
-    "features": {
-        "ghcr.io/devcontainers/features/github-cli:1": {}
-    },
-
-    "customizations": {
-        "vscode": {
-            "settings": {
-                "python.defaultInterpreterPath": "/opt/conda/envs/assignment-pr-creator/bin/python",
-                "python.terminal.activateEnvironment": true, 
-            }
-        }
-    },
-
-    "postCreateCommand": [
-        "bash",
-        "-c",
-        "conda env create -f environment.yml && echo 'Conda environment created successfully!'"
-    ],
-
     "remoteUser": "vscode",
 
     "forwardPorts": [],

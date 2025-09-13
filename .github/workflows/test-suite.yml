@@ -9,7 +9,7 @@ on:
 
 jobs:
   test-cross-platform:
-    name: Test Python 3.12 on ${{ matrix.os }}
+    name: Test Go on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
 
     strategy:
@@ -21,31 +21,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v4
+      - name: Set up Go
+        uses: actions/setup-go@v4
         with:
-          python-version: "3.12"
+          go-version-file: go.mod
 
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -r requirements-dev.txt
+        run: go mod download
 
-      - name: Run unit tests
-        run: |
-          python -m pytest tests/test_assignment_creator.py -v
+      - name: Run tests
+        run: go test ./...
 
-      - name: Run integration tests (Unix)
-        if: runner.os != 'Windows'
-        run: |
-          cd tests && bash test_runner.sh unit
-
-      - name: Run integration tests (Windows)
-        if: runner.os == 'Windows'
-        shell: cmd
-        run: |
-          cd tests && python test_local.py discover
+      - name: Build binary
+        run: go build -o assignment-pr-creator ./cmd/assignment-pr-creator
 
   test-quality:
     name: Code Quality and Security
@@ -55,23 +43,30 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - name: Set up Go
+        uses: actions/setup-go@v4
         with:
-          python-version: "3.12"
+          go-version-file: go.mod
 
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -r requirements-dev.txt
+        run: go mod download
 
-      - name: Run comprehensive test suite
-        run: |
-          cd tests && bash test_runner.sh all
+      - name: Run vet
+        run: go vet ./...
 
-  test-action-local:
-    name: Test Action Locally
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: latest
+
+      - name: Run tests with coverage
+        run: go test -race -coverprofile=coverage.out ./...
+
+      - name: Check test coverage
+        run: go tool cover -html=coverage.out -o coverage.html
+
+  test-action-dry-run:
+    name: Test Action (Dry Run)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -80,20 +75,20 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - name: Set up Go
+        uses: actions/setup-go@v4
         with:
-          python-version: "3.12"
+          go-version-file: go.mod
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+      - name: Build application
+        run: make build
 
-      - name: Test action script directly
-        run: |
-          cd tests && python test_local.py discover
+      - name: Test dry-run mode
+        run: make run
         env:
           ASSIGNMENTS_ROOT_REGEX: "^(assignments|homework|labs)$"
           ASSIGNMENT_REGEX: '^(assignment|hw|lab)-\d+$'
           DEFAULT_BRANCH: "main"
+          DRY_RUN: "true"
+          GITHUB_TOKEN: "fake-token"
+          GITHUB_REPOSITORY: "test/repo"

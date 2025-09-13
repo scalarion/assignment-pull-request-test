@@ -3,7 +3,11 @@
 A GitHub Action that automatically scans for assignment folders and creates pull
 requests with README files for educational repositories.
 
-## Features
+**🚀 Built with Go for high performance and reliability**
+
+## Overview
+
+This tool helps educators automate assignment repository setup by:
 
 - 🔍 **Smart Scanning**: Configurable regex patterns for assignment discovery
 - 🌿 **Branch Management**: Automatic branch creation with sanitized names
@@ -11,42 +15,597 @@ requests with README files for educational repositories.
 - 🔄 **Pull Request Creation**: Automated PRs for assignment review
 - 🛡️ **Safe Operation**: Only creates branches/PRs when they don't already exist
 - 🏃 **Dry-Run Mode**: Preview operations without making actual changes
-- ⚡ **Fail-Fast Error Handling**: Immediate failure on GitHub API errors for
-  reliable workflows
-- 🌐 **Direct Remote Operations**: All changes are immediately pushed to remote
-  via GitHub API
+- ⚡ **4-Phase Processing**: Sync → Local work → Atomic push → PR creation
 
-## Technical Implementation
+## Quick Start
 
-**🚀 All operations are performed directly on the remote repository via GitHub
-API:**
+### As a GitHub Action
 
-- **Branch Creation**: Uses `repo.create_git_ref()` - branch immediately
-  available on remote
-- **File Creation**: Uses `repo.create_file()` - file and commit immediately
-  pushed to remote
-- **Pull Request Creation**: Uses `repo.create_pull()` - PR immediately
-  available on remote
+```yaml
+name: Create Assignment PRs
+on:
+    push:
+        branches: [main]
 
-**No local git operations are involved.** The action does not clone the
-repository locally or use git commands. All changes are atomic operations
-performed directly against the GitHub repository through the REST API.
+jobs:
+    create-assignment-prs:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: majikmate/assignment-pull-request@v1
+              with:
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+                  dry-run: "false"
+```
 
-## Behavior
+### Local Development
 
-### Branch and Pull Request Logic
+```bash
+# Build and test
+make build && make run
 
-This action implements smart logic to handle branch and pull request lifecycle:
+# Live mode with your repository  
+GITHUB_TOKEN=your_token GITHUB_REPOSITORY=owner/repo make run-live
+```
+
+## Configuration
+
+### Environment Variables
+
+| Variable                 | Required | Default            | Description                             |
+| ------------------------ | -------- | ------------------ | --------------------------------------- |
+| `GITHUB_TOKEN`           | ✅       | -                  | GitHub personal access token            |
+| `GITHUB_REPOSITORY`      | ✅       | -                  | Repository name (`owner/repo`)          |
+| `ASSIGNMENTS_ROOT_REGEX` | ❌       | `^assignments$`    | Pattern for assignment root directories |
+| `ASSIGNMENT_REGEX`       | ❌       | `^assignment-\d+$` | Pattern for individual assignments      |
+| `DEFAULT_BRANCH`         | ❌       | `main`             | Default branch name                     |
+| `DRY_RUN`                | ❌       | `false`            | Enable simulation mode                  |
+
+### GitHub Action Inputs
+
+```yaml
+- uses: majikmate/assignment-pull-request@v1
+  with:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+      assignments-root-regex: "^(assignments|homework)$"
+      assignment-regex: "^(assignment|hw)-\\d+$"
+      default-branch: "main"
+      dry-run: "false"
+```
+
+## Project Structure
+
+This project follows the
+[Standard Go Project Layout](https://github.com/golang-standards/project-layout):
+
+```
+assignment-pull-request/
+├── cmd/assignment-pr-creator/      # Main application
+├── internal/                       # Private packages
+│   ├── creator/                    # Business logic
+│   ├── git/                       # Git operations  
+│   └── github/                    # GitHub API client
+├── bin/                           # Built binaries
+├── tests/                         # Test fixtures
+├── examples/                      # Usage examples
+├── Makefile                       # Build commands
+└── go.mod                         # Go module
+```
+
+## Development
+
+### Prerequisites
+
+- Go 1.24+
+- Git configured
+- GitHub token with repo permissions
+
+### Build Commands
+
+```bash
+make help        # Show all commands
+make build       # Build binary
+make run         # Build and run (dry-run)
+make run-live    # Build and run (live mode)
+make test        # Run tests
+make lint        # Run linter
+make fmt         # Format code
+make clean       # Clean artifacts
+make check       # All quality checks
+make install     # Install to GOPATH/bin
+```
+
+### Architecture
+
+**`cmd/assignment-pr-creator`**: Main entry point
+
+- Minimal initialization and error handling
+
+**`internal/creator`**: Core business logic
+
+- Configuration management
+- Assignment discovery and processing
+- Workflow orchestration
+
+**`internal/git`**: Git operations
+
+- Command execution with dry-run support
+- Branch and commit management
+- Remote synchronization
+
+**`internal/github`**: GitHub API client
+
+- Authentication and API calls
+- Pull request management
+- Repository state checking
+
+## Examples
+
+### Repository Structure
+
+```
+my-course/
+├── assignments/
+│   ├── assignment-1/          # ← Creates PR
+│   ├── assignment-2/          # ← Creates PR  
+│   └── semester-1/
+│       └── module-1/
+│           └── assignment-3/  # ← Creates PR
+├── lectures/
+└── resources/
+```
+
+### Custom Patterns
+
+```bash
+# Match multiple root directories
+ASSIGNMENTS_ROOT_REGEX="^(assignments|homework|labs)$"
+
+# Match different naming conventions
+ASSIGNMENT_REGEX="^(assignment|hw|lab)-\d+$"
+```
+
+### Testing Patterns
+
+```bash
+# Safe testing with dry-run
+DRY_RUN=true GITHUB_TOKEN=dummy GITHUB_REPOSITORY=test/repo make run
+
+# Test custom patterns
+DRY_RUN=true \
+ASSIGNMENTS_ROOT_REGEX="^homework$" \
+ASSIGNMENT_REGEX="^hw-\d+$" \
+make run
+```
+
+## How It Works
+
+### 4-Phase Processing
+
+1. **Sync Phase**: Fetch all remote branches to ensure complete local state
+2. **Local Phase**: Process assignments locally (create branches, add READMEs)
+3. **Push Phase**: Atomically push all changes to remote repository
+4. **PR Phase**: Create pull requests via GitHub API
+
+### Smart Logic
 
 **Branch Creation**:
 
-- ✅ Creates a branch if no branch exists AND no pull request has ever existed
-  for that branch name
-- ❌ Does NOT recreate a branch if a pull request existed before (even if merged
-  and branch deleted)
-- ℹ️ This prevents recreating branches for completed assignments
+- ✅ Creates if no branch exists AND no PR has ever existed
+- ❌ Skips if PR existed before (prevents recreating completed work)
 
 **Pull Request Creation**:
+
+- ✅ Creates if branch exists but no PR has ever existed
+- ❌ Skips if any PR has ever existed (open, closed, or merged)
+
+## Troubleshooting
+
+### Common Issues
+
+**Permission Errors**: Ensure `GITHUB_TOKEN` has `repo` scope\
+**Pattern Mismatches**: Test regex patterns with `DRY_RUN=true`\
+**Build Failures**: Check Go version (requires 1.24+)
+
+### Debug Commands
+
+```bash
+# Verbose dry-run output
+DRY_RUN=true make run
+
+# Check patterns match your structure
+find . -name "assignment-*" -type d
+
+# Test Go installation
+go version && make check
+```
+
+## Migration Notes
+
+This action was originally implemented in Python and rewritten in Go for:
+
+- **Better Performance**: Faster execution, lower memory usage
+- **Single Binary**: No dependency management needed
+- **Type Safety**: Compile-time error detection
+- **Better Tooling**: Superior development ecosystem
+
+The API and functionality remain identical for seamless migration.
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+## Support
+
+- 📂 [Examples Directory](examples/)
+- 🐛
+  [Issue Tracker](https://github.com/majikmate/assignment-pull-request/issues)
+- 💬
+  [Discussions](https://github.com/majikmate/assignment-pull-request/discussions)
+
+## Usage- **README Generation**: Template README.md files for each assignment- **README Generation**: Template README.md files for each assignment
+
+### Basic GitHub Action- **Pull Request Creation**: Automated PRs for assignment review- **Pull Request Creation**: Automated PRs for assignment review
+
+```yaml- **Safe Operation**: Only creates branches/PRs when they don't already exist- **Safe Operation**: Only creates branches/PRs when they don't already exist
+name: Create Assignment PRs
+
+on:- **Dry-Run Mode**: Preview operations without making actual changes- **Dry-Run Mode**: Preview operations without making actual changes
+
+  push:
+
+    branches: [main]- **4-Phase Processing**: Sync → Local work → Atomic push → PR creation- **4-Phase Processing**: Sync → Local work → Atomic push → PR creation
+
+
+
+jobs:
+
+  create-assignment-prs:
+
+    runs-on: ubuntu-latest## Usage## Usage
+
+    steps:
+
+      - uses: actions/checkout@v4
+
+      - uses: majikmate/assignment-pull-request@v1
+
+        with:### Basic GitHub Action### Basic GitHub Action
+
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+          dry-run: "false"
+```
+
+`yaml`yaml
+
+### Local Development & Testing
+
+name: Create Assignment PRsname: Create Assignment PRs
+
+```````bash
+# Build the applicationon:on:
+
+make build
+
+  push:  push:
+
+# Test with dry-run mode (safe)
+
+make run    branches: [main]    branches: [main]
+
+
+
+# Test with your repository
+
+GITHUB_TOKEN=your_token GITHUB_REPOSITORY=owner/repo make run-live
+
+```jobs:jobs:
+
+
+
+## Configuration  create-assignment-prs:  create-assignment-prs:
+
+
+
+### Environment Variables    runs-on: ubuntu-latest    runs-on: ubuntu-latest
+
+
+
+**Required:**    steps:    steps:
+
+- `GITHUB_TOKEN`: GitHub personal access token
+
+- `GITHUB_REPOSITORY`: Repository name in "owner/repo" format      - uses: actions/checkout@v4      - uses: actions/checkout@v4
+
+
+
+**Optional:**      - uses: majikmate/assignment-pull-request@v1      - uses: majikmate/assignment-pull-request@v1
+
+- `ASSIGNMENTS_ROOT_REGEX`: Pattern for assignment root directories (default: "^assignments$")
+
+- `ASSIGNMENT_REGEX`: Pattern for individual assignments (default: "^assignment-\\d+$")        with:        with:
+
+- `DEFAULT_BRANCH`: Default branch name (default: "main")
+
+- `DRY_RUN`: Enable simulation mode (default: "false")          github-token: ${{ secrets.GITHUB_TOKEN }}          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+
+
+### Action Inputs          dry-run: "false"          dry-run: "false"
+
+
+
+```yaml``````
+
+- uses: majikmate/assignment-pull-request@v1
+
+  with:
+
+    github-token: ${{ secrets.GITHUB_TOKEN }}
+
+    assignments-root-regex: "^(assignments|homework)$"### Local Development & Testing### Local Development & Testing
+
+    assignment-regex: "^(assignment|hw)-\\d+$"
+
+    default-branch: "main"
+
+    dry-run: "false"
+
+``````bash```bash
+
+
+
+## Examples# Build the application# Build the application
+
+
+
+See the [`examples/`](examples/) directory for:make buildmake build
+
+- GitHub Actions workflow configurations
+
+- Repository structure examples
+
+- Testing and development patterns
+
+# Test with dry-run mode (safe)# Test with dry-run mode (safe)
+
+## Development
+
+make runmake run
+
+This project uses the [Standard Go Project Layout](https://github.com/golang-standards/project-layout). For detailed development information, see [GO_README.md](GO_README.md).
+
+
+
+### Quick Development Commands
+
+# Test with your repository# Test with your repository
+
+```bash
+
+make help        # Show all available commandsGITHUB_TOKEN=your_token GITHUB_REPOSITORY=owner/repo make run-liveGITHUB_TOKEN=your_token GITHUB_REPOSITORY=owner/repo make run-live
+
+make build       # Build the binary
+
+make test        # Run tests``````
+
+make lint        # Run linter
+
+make clean       # Clean build artifacts
+
+make check       # Run all quality checks
+
+```## Configuration## Configuration
+
+
+
+## Migration from Python
+
+
+
+This action was originally implemented in Python and has been rewritten in Go for better performance and maintainability. The functionality and interface remain identical - only the implementation language has changed.### Environment Variables### Environment Variables
+
+
+
+## Algorithm
+
+
+
+### Directory Discovery**Required:****Required:**
+
+
+
+The action uses a flexible two-tier regex system:- `GITHUB_TOKEN`: GitHub personal access token- `GITHUB_TOKEN`: GitHub personal access token
+
+
+
+1. **Root Discovery**: Uses `ASSIGNMENTS_ROOT_REGEX` to find assignment container directories- `GITHUB_REPOSITORY`: Repository name in "owner/repo" format- `GITHUB_REPOSITORY`: Repository name in "owner/repo" format
+
+2. **Assignment Discovery**: Within each root, uses `ASSIGNMENT_REGEX` to identify individual assignments
+
+
+
+### Assignment Processing
+
+**Optional:****Optional:**
+
+For each discovered assignment directory:
+
+- `ASSIGNMENTS_ROOT_REGEX`: Pattern for assignment root directories (default: "^assignments$")- `ASSIGNMENTS_ROOT_REGEX`: Pattern for assignment root directories (default: "^assignments$")
+
+1. **Sanitization**: Converts directory name to a valid Git branch name
+
+2. **Branch Creation**: Creates a branch like `assignment/<sanitized-name>`- `ASSIGNMENT_REGEX`: Pattern for individual assignments (default: "^assignment-\\d+$")- `ASSIGNMENT_REGEX`: Pattern for individual assignments (default: "^assignment-\\d+$")
+
+3. **README Addition**: Adds a standardized README.md file
+
+4. **Pull Request**: Creates a PR from the assignment branch to the default branch- `DEFAULT_BRANCH`: Default branch name (default: "main")- `DEFAULT_BRANCH`: Default branch name (default: "main")
+
+
+
+### Git Operations- `DRY_RUN`: Enable simulation mode (default: "false")- `DRY_RUN`: Enable simulation mode (default: "false")
+
+
+
+- **Atomic Operations**: All git operations for an assignment happen atomically
+
+- **Safe Handling**: Skips assignments that already have branches or PRs
+
+- **Clean Workspace**: Each assignment gets a fresh working directory### Action Inputs### Action Inputs
+
+
+
+## Directory Structure Examples
+
+
+
+The action works with various educational repository structures:```yaml```yaml
+
+
+
+```- uses: majikmate/assignment-pull-request@v1- uses: majikmate/assignment-pull-request@v1
+
+assignments/
+
+├── assignment-1/  with:  with:
+
+│   └── instructions.md
+
+├── assignment-2/    github-token: ${{ secrets.GITHUB_TOKEN }}    github-token: ${{ secrets.GITHUB_TOKEN }}
+
+│   └── instructions.md
+
+└── assignment-3/    assignments-root-regex: "^(assignments|homework)$"    assignments-root-regex: "^(assignments|homework)$"
+
+    └── instructions.md
+
+```    assignment-regex: "^(assignment|hw)-\\d+$"    assignment-regex: "^(assignment|hw)-\\d+$"
+
+
+
+Or more complex structures:    default-branch: "main"    default-branch: "main"
+
+
+
+```    dry-run: "false"    dry-run: "false"
+
+semester-1/
+
+├── module-1/``````
+
+│   └── assignment-1/
+
+│       └── instructions.md
+
+└── module-2/
+
+    └── assignment-2/## Examples## Examples
+
+        └── instructions.md
+```````
+
+## TestingSee the [`examples/`](examples/) directory for:See the [`examples/`](examples/) directory for:
+
+### Build and Test- GitHub Actions workflow configurations- GitHub Actions workflow configurations
+
+```bash- Repository structure examples- Repository structure examples
+# Build and run all checks
+
+make check- Testing and development patterns- Testing and development patterns
+
+
+
+# Run specific tests
+
+make test
+
+## Development## Development
+
+# Build the binary
+
+make build
+```
+
+This project uses the
+[Standard Go Project Layout](https://github.com/golang-standards/project-layout).
+For detailed development information, see [GO_README.md](GO_README.md).This
+project uses the
+[Standard Go Project Layout](https://github.com/golang-standards/project-layout).
+For detailed development information, see [GO_README.md](GO_README.md).
+
+### Dry Run Testing
+
+````bash
+# Test locally with dry-run mode### Quick Development Commands### Quick Development Commands
+
+make run
+
+
+
+# Test with specific repository
+
+DRY_RUN=true GITHUB_TOKEN=fake_token GITHUB_REPOSITORY=owner/repo ./bin/assignment-pr-creator```bash```bash
+````
+
+make help # Show all available commandsmake help # Show all available commands
+
+## License
+
+make build # Build the binarymake build # Build the binary
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
+for details.
+
+make test # Run testsmake test # Run tests
+
+## Contributing
+
+make lint # Run lintermake lint # Run linter
+
+1. Fork the repository
+
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)make
+   clean # Clean build artifactsmake clean # Clean build artifacts
+
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+
+4. Push to the branch (`git push origin feature/amazing-feature`)make check #
+   Run all quality checksmake check # Run all quality checks
+
+5. Open a Pull Request
+
+`````
+For development setup and guidelines, see [GO_README.md](GO_README.md).
+
+
+## Migration from Python## Migration from Python
+
+
+
+This action was originally implemented in Python and has been rewritten in Go for better performance and maintainability. The functionality and interface remain identical - only the implementation language has changed.This action was originally implemented in Python and has been rewritten in Go for better performance and maintainability. The functionality and interface remain identical - only the implementation language has changed.
+
+
+
+## License## License
+
+
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+
+
+## Support## Support
+
+
+
+- 📚 [Detailed Go Documentation](GO_README.md)- 📚 [Detailed Go Documentation](GO_README.md)
+
+- 🔧 [Examples and Patterns](examples/)- 🔧 [Examples and Patterns](examples/)
+
+- 🐛 [Issue Tracker](https://github.com/majikmate/assignment-pull-request/issues)- 🐛 [Issue Tracker](https://github.com/majikmate/assignment-pull-request/issues)
+
+- 💡 [Discussions](https://github.com/majikmate/assignment-pull-request/discussions)- 💡 [Discussions](https://github.com/majikmate/assignment-pull-request/discussions)
 
 - ✅ Creates README.md content first, then creates PR if NO pull request has
   ever existed for that branch name
@@ -542,3 +1101,4 @@ assignments:
 
 For more examples and advanced usage, see the
 [GitHub repository](https://github.com/majikmate/assignment-pull-request).
+`````

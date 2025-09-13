@@ -1,4 +1,4 @@
-name: Test Action Only
+name: Test Action
 
 on:
   workflow_dispatch:
@@ -15,9 +15,17 @@ on:
         description: "Default branch for pull requests"
         required: false
         default: "main"
+      dry-run:
+        description: "Run in dry-run mode (no actual changes)"
+        required: false
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
 
 jobs:
-  test-action-only:
+  test-action:
     runs-on: ubuntu-latest
     name: Test Assignment PR Creator Action
     permissions:
@@ -34,46 +42,48 @@ jobs:
           assignments-root-regex: ${{ github.event.inputs.assignments-root-regex || '^assignments$' }}
           assignment-regex: ${{ github.event.inputs.assignment-regex || '^assignment-\d+$' }}
           default-branch: ${{ github.event.inputs.default-branch || 'main' }}
+          dry-run: ${{ github.event.inputs.dry-run || 'true' }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Display detailed results
+      - name: Display results
         run: |
           echo "## 📊 Assignment PR Creator Results"
           echo ""
-          echo "### Configuration Used:"
-          echo "- Root Regex: ${{ github.event.inputs.assignments-root-regex || '^assignments$' }}"
-          echo "- Assignment Regex: ${{ github.event.inputs.assignment-regex || '^assignment-\d+$' }}"
-          echo "- Default Branch: ${{ github.event.inputs.default-branch || 'main' }}"
+          echo "### Configuration:"
+          echo "- Root Regex: \`${{ github.event.inputs.assignments-root-regex || '^assignments$' }}\`"
+          echo "- Assignment Regex: \`${{ github.event.inputs.assignment-regex || '^assignment-\d+$' }}\`"
+          echo "- Default Branch: \`${{ github.event.inputs.default-branch || 'main' }}\`"
+          echo "- Dry Run: \`${{ github.event.inputs.dry-run || 'true' }}\`"
           echo ""
 
-          echo "### Results:"
-          echo "**Created branches:** ${{ steps.assignment-pr.outputs.created-branches }}"
-          echo "**Created pull requests:** ${{ steps.assignment-pr.outputs.created-pull-requests }}"
-          echo ""
+          # Get outputs safely
+          BRANCHES='${{ steps.assignment-pr.outputs.created-branches || '[]' }}'
+          PRS='${{ steps.assignment-pr.outputs.created-pull-requests || '[]' }}'
 
-          # Parse and display counts
-          BRANCHES='${{ steps.assignment-pr.outputs.created-branches }}'
-          PRS='${{ steps.assignment-pr.outputs.created-pull-requests }}'
-
-          BRANCH_COUNT=$(echo "$BRANCHES" | jq 'length')
-          PR_COUNT=$(echo "$PRS" | jq 'length')
+          # Count items
+          BRANCH_COUNT=$(echo "$BRANCHES" | jq 'length // 0' 2>/dev/null || echo "0")
+          PR_COUNT=$(echo "$PRS" | jq 'length // 0' 2>/dev/null || echo "0")
 
           echo "### Summary:"
           echo "- **Branches created:** $BRANCH_COUNT"
           echo "- **Pull requests created:** $PR_COUNT"
 
-          # List individual items if any were created
-          if [ "$BRANCH_COUNT" -gt 0 ]; then
+          # List details if available
+          if [ "$BRANCH_COUNT" -gt 0 ] && [ "$BRANCHES" != "[]" ]; then
             echo ""
-            echo "### Created Branches:"
-            echo "$BRANCHES" | jq -r '.[]' | sed 's/^/- /'
+            echo "### 🌿 Created Branches:"
+            echo "$BRANCHES" | jq -r '.[] // empty' | sed 's/^/- `/' | sed 's/$/`/'
           fi
 
-          if [ "$PR_COUNT" -gt 0 ]; then
+          if [ "$PR_COUNT" -gt 0 ] && [ "$PRS" != "[]" ]; then
             echo ""
-            echo "### Created Pull Requests:"
-            echo "$PRS" | jq -r '.[]' | sed 's/^/- #/'
+            echo "### 🔄 Created Pull Requests:"
+            echo "$PRS" | jq -r '.[] // empty' | sed 's/^/- #/'
           fi
 
           echo ""
-          echo "✅ Action test completed successfully!"
+          if [ "${{ github.event.inputs.dry-run || 'true' }}" = "true" ]; then
+            echo "🔍 **Dry run completed** - No actual changes were made"
+          else
+            echo "✅ **Live run completed** - Changes were applied to repository"
+          fi

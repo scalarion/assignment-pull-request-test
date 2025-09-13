@@ -11,10 +11,13 @@ updates:
       prefix: "ci"
       include: "scope"
 
-  # Monitor Python dependencies
-  - package-ecosystem: "pip"
+  # Monitor Go modules dependencies
+  - package-ecosystem: "gomod"
     directory: "/"
     schedule:
       interval: "daily"
       time: "02:00"
     open-pull-requests-limit: 10
+    commit-message:
+      prefix: "deps"
+      include: "scope"

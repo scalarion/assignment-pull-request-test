@@ -1,0 +1,200 @@
+package git
+
+import (
+	"fmt"
+	"os/exec"
+	"strings"
+)
+
+// Commander handles git command execution
+type Commander struct {
+	dryRun bool
+}
+
+// NewCommander creates a new git commander
+func NewCommander(dryRun bool) *Commander {
+	return &Commander{dryRun: dryRun}
+}
+
+// RunCommand runs a git command, either for real or simulate in dry-run mode
+func (c *Commander) RunCommand(command, description string) error {
+	if c.dryRun {
+		fmt.Printf("[DRY RUN] %s: %s\n", description, command)
+		return nil
+	}
+
+	if description != "" {
+		fmt.Printf("%s: %s\n", description, command)
+	}
+
+	cmd := exec.Command("sh", "-c", command)
+	output, err := cmd.CombinedOutput()
+
+	if err != nil {
+		return fmt.Errorf("error running command '%s': %w\nOutput: %s", command, err, string(output))
+	}
+
+	if len(output) > 0 {
+		fmt.Printf("  Output: %s\n", strings.TrimSpace(string(output)))
+	}
+
+	return nil
+}
+
+// RunCommandWithOutput runs a git command and returns its output
+func (c *Commander) RunCommandWithOutput(command, description string) (string, error) {
+	if c.dryRun {
+		fmt.Printf("[DRY RUN] %s: %s\n", description, command)
+		return "", nil // Return empty string for dry-run
+	}
+
+	if description != "" {
+		fmt.Printf("%s: %s\n", description, command)
+	}
+
+	cmd := exec.Command("sh", "-c", command)
+	output, err := cmd.Output()
+
+	if err != nil {
+		if exitError, ok := err.(*exec.ExitError); ok {
+			return "", fmt.Errorf("error running command '%s': %w\nStderr: %s", command, err, string(exitError.Stderr))
+		}
+		return "", fmt.Errorf("error running command '%s': %w", command, err)
+	}
+
+	return strings.TrimSpace(string(output)), nil
+}
+
+// Operations provides higher-level git operations
+type Operations struct {
+	commander *Commander
+}
+
+// NewOperations creates a new git operations handler
+func NewOperations(dryRun bool) *Operations {
+	return &Operations{
+		commander: NewCommander(dryRun),
+	}
+}
+
+// SwitchToBranch switches to the specified branch
+func (o *Operations) SwitchToBranch(branchName string) error {
+	return o.commander.RunCommand(
+		fmt.Sprintf("git checkout %s", branchName),
+		fmt.Sprintf("Switch to branch '%s'", branchName),
+	)
+}
+
+// CreateAndSwitchToBranch creates a new branch and switches to it
+func (o *Operations) CreateAndSwitchToBranch(branchName string) error {
+	return o.commander.RunCommand(
+		fmt.Sprintf("git checkout -b %s", branchName),
+		fmt.Sprintf("Create and switch to branch '%s'", branchName),
+	)
+}
+
+// AddFile stages a file for commit
+func (o *Operations) AddFile(filePath string) error {
+	return o.commander.RunCommand(
+		fmt.Sprintf("git add %s", filePath),
+		"Stage file",
+	)
+}
+
+// Commit creates a commit with the specified message
+func (o *Operations) Commit(message string) error {
+	return o.commander.RunCommand(
+		fmt.Sprintf(`git commit -m "%s"`, message),
+		"Commit changes",
+	)
+}
+
+// FetchAll fetches all remote branches and tags
+func (o *Operations) FetchAll() error {
+	return o.commander.RunCommand(
+		"git fetch --all",
+		"Fetch all remote branches and tags",
+	)
+}
+
+// PushAllBranches pushes all local branches to remote
+func (o *Operations) PushAllBranches() error {
+	return o.commander.RunCommand(
+		"git push --all origin",
+		"Atomically push all local branches to remote",
+	)
+}
+
+// GetLocalBranches returns a map of local branch names
+func (o *Operations) GetLocalBranches() (map[string]bool, error) {
+	branches := make(map[string]bool)
+
+	if o.commander.dryRun {
+		fmt.Println("[DRY RUN] Would check local branches with command:")
+		fmt.Println("  git branch")
+		// Return empty set for dry-run to simulate clean repository
+		return branches, nil
+	}
+
+	// Get local branches
+	output, err := o.commander.RunCommandWithOutput(
+		"git branch",
+		"Get local branches",
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			// Format: "* main" or "  branch-name"
+			branchName := strings.TrimSpace(strings.TrimPrefix(line, "*"))
+			if branchName != "" {
+				branches[branchName] = true
+			}
+		}
+	}
+
+	fmt.Printf("Found %d local branches\n", len(branches))
+	return branches, nil
+}
+
+// GetRemoteBranches gets list of remote branches and creates local tracking branches
+func (o *Operations) GetRemoteBranches(defaultBranch string) error {
+	if o.commander.dryRun {
+		fmt.Println("[DRY RUN] Would create local tracking branches for all remote branches")
+		return nil
+	}
+
+	// Get list of remote branches
+	output, err := o.commander.RunCommandWithOutput(
+		"git branch -r",
+		"List remote branches",
+	)
+	if err != nil {
+		return err
+	}
+
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" && !strings.HasSuffix(line, "/HEAD") {
+			// Format: "  origin/branch-name"
+			if strings.HasPrefix(line, "origin/") {
+				branchName := strings.TrimPrefix(line, "origin/")
+				// Skip default branch as it already exists locally
+				if branchName != defaultBranch {
+					if err := o.commander.RunCommand(
+						fmt.Sprintf("git checkout -b %s %s", branchName, line),
+						fmt.Sprintf("Create local tracking branch for %s", branchName),
+					); err != nil {
+						// Log error but continue with other branches
+						fmt.Printf("Warning: failed to create tracking branch for %s: %v\n", branchName, err)
+					}
+				}
+			}
+		}
+	}
+
+	return nil
+}

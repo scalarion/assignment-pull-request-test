@@ -35,11 +35,11 @@ Before applying any configuration to your repository:
 
 ```bash
 # Local dry-run test
-DRY_RUN=true GITHUB_TOKEN=fake_token GITHUB_REPOSITORY=owner/repo python create_assignment_prs.py
+DRY_RUN=true GITHUB_TOKEN=fake_token GITHUB_REPOSITORY=owner/repo ./bin/assignment-pr-creator
 
 # Test with your specific patterns
 DRY_RUN=true GITHUB_TOKEN=fake_token GITHUB_REPOSITORY=owner/repo \
 ASSIGNMENTS_ROOT_REGEX="^your-pattern$" \
 ASSIGNMENT_REGEX="^your-assignment-pattern$" \
-python create_assignment_prs.py
+./bin/assignment-pr-creator
 ```
