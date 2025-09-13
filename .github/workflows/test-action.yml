@@ -35,6 +35,23 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: go.mod
+
+      - name: Install dependencies
+        run: go mod download
+
+      - name: Install golangci-lint
+        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+
+      - name: Create coverage directory
+        run: mkdir -p coverage
+
+      - name: Run comprehensive sanity checks
+        run: make check
+
       - name: Run Assignment PR Creator
         id: assignment-pr
         uses: ./

@@ -29,6 +29,9 @@ jobs:
       - name: Install dependencies
         run: go mod download
 
+      - name: Run go vet
+        run: go vet ./...
+
       - name: Run tests
         run: go test ./...
 
@@ -51,19 +54,21 @@ jobs:
       - name: Install dependencies
         run: go mod download
 
-      - name: Run vet
-        run: go vet ./...
+      - name: Install golangci-lint
+        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 
-      - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v3
+      - name: Create coverage directory
+        run: mkdir -p coverage
+
+      - name: Run comprehensive sanity checks
+        run: make check
+
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v4
         with:
-          version: latest
-
-      - name: Run tests with coverage
-        run: go test -race -coverprofile=coverage.out ./...
-
-      - name: Check test coverage
-        run: go tool cover -html=coverage.out -o coverage.html
+          name: coverage-report
+          path: coverage/
+          retention-days: 7
 
   test-action-dry-run:
     name: Test Action (Dry Run)
@@ -79,6 +84,18 @@ jobs:
         uses: actions/setup-go@v4
         with:
           go-version-file: go.mod
+
+      - name: Install dependencies
+        run: go mod download
+
+      - name: Install golangci-lint
+        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+
+      - name: Create coverage directory
+        run: mkdir -p coverage
+
+      - name: Run quick sanity checks
+        run: make check-quick
 
       - name: Build application
         run: make build

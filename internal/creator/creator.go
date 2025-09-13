@@ -219,7 +219,7 @@ func (c *Creator) createBranch(branchName string) error {
 }
 
 // createReadme creates or augments README.md file in the assignment folder locally
-func (c *Creator) createReadme(assignmentPath, branchName string) error {
+func (c *Creator) createReadme(assignmentPath string) error {
 	readmePath := filepath.Join(assignmentPath, "README.md")
 	caser := cases.Title(language.English)
 	assignmentTitle := caser.String(strings.ReplaceAll(assignmentPath, "/", " - "))
@@ -601,7 +601,7 @@ func (c *Creator) processAssignments() error {
 
 			// Create README content locally
 			fmt.Printf("Creating README content for assignment '%s'...\n", assignmentPath)
-			if err := c.createReadme(assignmentPath, branchName); err != nil {
+			if err := c.createReadme(assignmentPath); err != nil {
 				fmt.Printf("❌ Failed to create README for '%s', skipping: %v\n", assignmentPath, err)
 				continue
 			}
