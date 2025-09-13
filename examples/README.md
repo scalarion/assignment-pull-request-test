@@ -3,6 +3,12 @@
 This directory contains example files showing how to use the Assignment Pull
 Request Creator action in various scenarios.
 
+## Requirements
+
+- **Platform**: All examples use `ubuntu-latest` as the action requires Linux
+  runners
+- **Permissions**: `contents: write` and `pull-requests: write`
+
 ## Files
 
 - **`workflow-example.yml`** - Example GitHub Actions workflow showing how to

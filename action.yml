@@ -1,6 +1,9 @@
 name: "Assignment Pull Request Creator"
-description: "Scans for assignment folders and creates a pull request for each assignment. Supports dry-run mode to simulate operations without making changes."
+description: "Scans for assignment folders and creates a pull request for each assignment. Supports dry-run mode to simulate operations without making changes. Designed to run on Linux runners only."
 author: "majikmate"
+
+# Platform requirements
+runs-on: ubuntu-latest
 
 inputs:
   default-branch:

@@ -5,6 +5,12 @@ requests with README files for educational repositories.
 
 **🚀 Built with Go for high performance and reliability**
 
+## Requirements
+
+- **Platform**: Linux runners only (`ubuntu-latest`)
+- **Runtime**: GitHub Actions environment
+- **Permissions**: `contents: write` and `pull-requests: write`
+
 ## Features
 
 - 🔍 **Smart Scanning**: Configurable regex patterns for assignment discovery
