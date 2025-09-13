@@ -515,25 +515,25 @@ func TestExtractBranchName(t *testing.T) {
 		{
 			name:           "homework pattern",
 			assignmentPath: "CS101/hw-2",
-			expectedBranch: "cs101-hw-2", // Implementation converts to lowercase
+			expectedBranch: "cs101-2-hw", // Named groups alphabetically: course, number, type
 			expectedMatch:  true,
 		},
 		{
 			name:           "test fixtures assignment",
 			assignmentPath: "test/fixtures/assignments/assignment-1",
-			expectedBranch: "assignments-assignment-1",
+			expectedBranch: "assignment-1-assignments", // Named groups alphabetically: name, type
 			expectedMatch:  true,
 		},
 		{
 			name:           "test fixtures homework",
 			assignmentPath: "test/fixtures/homework/hw-1",
-			expectedBranch: "homework-hw-1",
+			expectedBranch: "hw-1-homework", // Named groups alphabetically: name, type
 			expectedMatch:  true,
 		},
 		{
 			name:           "course structure",
 			assignmentPath: "test/fixtures/courses/CS101/week-02/assignment-sorting",
-			expectedBranch: "cs101-week-02-assignment-sorting", // Implementation converts to lowercase
+			expectedBranch: "assignment-sorting-cs101-week-02", // Named groups alphabetically: assignment, course, week
 			expectedMatch:  true,
 		},
 		{
@@ -591,7 +591,7 @@ func TestExtractBranchNameWithUnnamedGroups(t *testing.T) {
 		{
 			name:           "mixed groups: course/hw-number",
 			assignmentPath: "CS101/hw-2",
-			expectedBranch: "cs101", // Only named group used when both named and unnamed exist
+			expectedBranch: "cs101-hw-2", // Named group "course" alphabetically first + unnamed groups in order
 			expectedMatch:  true,
 		},
 		{
@@ -611,6 +611,53 @@ func TestExtractBranchNameWithUnnamedGroups(t *testing.T) {
 			assignmentPath: "random/path/not/matching",
 			expectedBranch: "",
 			expectedMatch:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			branch, matched := creator.extractBranchName(tt.assignmentPath)
+
+			if matched != tt.expectedMatch {
+				t.Errorf("Expected match=%t, got=%t", tt.expectedMatch, matched)
+			}
+
+			if branch != tt.expectedBranch {
+				t.Errorf("Expected branch=%s, got=%s", tt.expectedBranch, branch)
+			}
+		})
+	}
+}
+
+// TestExtractBranchNameAlphabeticalOrdering tests alphabetical ordering of named groups
+func TestExtractBranchNameAlphabeticalOrdering(t *testing.T) {
+	// Test pattern with multiple named groups: module, course, assignment (alphabetically: assignment, course, module)
+	creator := &Creator{
+		assignmentPatterns: []*regexp.Regexp{
+			// Multiple named groups to test alphabetical ordering
+			regexp.MustCompile(`^(?P<module>[^/]+)/(?P<course>[^/]+)/(?P<assignment>[^/]+)$`),
+			// Mixed named and unnamed groups
+			regexp.MustCompile(`^(?P<year>\d+)/(?P<course>[^/]+)/(week-\d+)/(assignment-\d+)$`),
+		},
+	}
+
+	tests := []struct {
+		name           string
+		assignmentPath string
+		expectedBranch string
+		expectedMatch  bool
+	}{
+		{
+			name:           "multiple named groups alphabetical order",
+			assignmentPath: "backend/CS101/variables",
+			expectedBranch: "variables-cs101-backend", // assignment, course, module (alphabetical)
+			expectedMatch:  true,
+		},
+		{
+			name:           "mixed named and unnamed groups",
+			assignmentPath: "2024/CS102/week-5/assignment-3",
+			expectedBranch: "cs102-2024-week-5-assignment-3", // course, year (alphabetical) + unnamed groups (order)
+			expectedMatch:  true,
 		},
 	}
 

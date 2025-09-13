@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 
 	"assignment-pull-request/internal/git"
@@ -156,29 +157,59 @@ func (c *Creator) extractBranchName(assignmentPath string) (string, bool) {
 			names := pattern.SubexpNames()
 			var branchParts []string
 
-			// Strategy 1: Prioritize named groups
-			hasNamedGroups := false
+			// Collect named groups and their values, sorted alphabetically by name
+			namedGroups := make(map[string]string)
+			var namedGroupNames []string
+
 			for i, name := range names {
 				if name != "" && i < len(matches) && matches[i] != "" {
 					part := strings.TrimSpace(matches[i])
 					if part != "" {
-						branchParts = append(branchParts, part)
-						hasNamedGroups = true
+						namedGroups[name] = part
+						namedGroupNames = append(namedGroupNames, name)
 					}
 				}
 			}
 
-			// Strategy 2: If no named groups found, use all capturing groups (unnamed)
-			if !hasNamedGroups {
-				branchParts = nil                   // Reset
-				for i := 1; i < len(matches); i++ { // Skip index 0 (full match)
-					if matches[i] != "" {
-						part := strings.TrimSpace(matches[i])
-						if part != "" {
-							branchParts = append(branchParts, part)
-						}
+			// Sort named group names alphabetically
+			if len(namedGroupNames) > 0 {
+				sort.Strings(namedGroupNames)
+				// Add named groups in alphabetical order
+				for _, name := range namedGroupNames {
+					branchParts = append(branchParts, namedGroups[name])
+				}
+			}
+
+			// Collect unnamed groups in order of appearance
+			var unnamedParts []string
+			for i := 1; i < len(matches); i++ { // Skip index 0 (full match)
+				// Skip if this index corresponds to a named group
+				isNamedGroup := false
+				if i < len(names) && names[i] != "" {
+					isNamedGroup = true
+				}
+
+				if !isNamedGroup && matches[i] != "" {
+					part := strings.TrimSpace(matches[i])
+					if part != "" {
+						unnamedParts = append(unnamedParts, part)
 					}
 				}
+			}
+
+			// Apply the specified logic:
+			// 1. If only unnamed groups: use unnamed groups in order
+			// 2. If only named groups: use named groups alphabetically
+			// 3. If both: named groups alphabetically + unnamed groups in order
+			if len(namedGroupNames) == 0 && len(unnamedParts) > 0 {
+				// Only unnamed groups
+				branchParts = unnamedParts
+			} else if len(namedGroupNames) > 0 && len(unnamedParts) == 0 {
+				// Only named groups (already added above)
+				// branchParts already contains named groups in alphabetical order
+			} else if len(namedGroupNames) > 0 && len(unnamedParts) > 0 {
+				// Both named and unnamed: named first (alphabetical) + unnamed (order of appearance)
+				branchParts = append(branchParts, unnamedParts...)
 			}
 
 			// If we found any capturing groups, use them
@@ -187,7 +218,7 @@ func (c *Creator) extractBranchName(assignmentPath string) (string, bool) {
 				return c.sanitizeBranchName(branchName), true
 			}
 
-			// Strategy 3: Look for "branch" specifically (backward compatibility)
+			// Strategy for backward compatibility: Look for "branch" specifically
 			for i, name := range names {
 				if name == "branch" && i < len(matches) {
 					branchName := strings.TrimSpace(matches[i])
@@ -197,7 +228,7 @@ func (c *Creator) extractBranchName(assignmentPath string) (string, bool) {
 				}
 			}
 
-			// Strategy 4: Fall back to using the entire match
+			// Fall back to using the entire match
 			if len(matches) > 0 {
 				branchName := strings.TrimSpace(matches[0])
 				if branchName != "" {
