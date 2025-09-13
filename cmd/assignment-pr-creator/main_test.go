@@ -508,3 +508,87 @@ func BenchmarkFullWorkflow(b *testing.B) {
 		}
 	}
 }
+
+// TestBranchNameConflictValidation tests that branch name conflicts are detected and rejected
+func TestBranchNameConflictValidation(t *testing.T) {
+	// Save original directory
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get current directory: %v", err)
+	}
+
+	tempDir := t.TempDir()
+	err = os.Chdir(tempDir)
+	if err != nil {
+		t.Fatalf("Failed to change to temp directory: %v", err)
+	}
+	defer func() {
+		_ = os.Chdir(originalDir)
+	}()
+
+	// Create assignments that would generate conflicting branch names
+	conflictingAssignments := []string{
+		"assignment-1",        // Would generate branch: assignment-1
+		"CS101/assignment-1",  // Would also generate branch: assignment-1 (conflict!)
+		"unique/assignment-2", // Would generate branch: assignment-2 (unique)
+	}
+
+	for _, assignment := range conflictingAssignments {
+		err := os.MkdirAll(assignment, 0755)
+		if err != nil {
+			t.Fatalf("Failed to create assignment directory %s: %v", assignment, err)
+		}
+	}
+
+	// Set environment variables to cause conflicts
+	envVars := map[string]string{
+		"GITHUB_TOKEN":           "test-token",
+		"GITHUB_REPOSITORY":      "test/repo",
+		"ASSIGNMENTS_ROOT_REGEX": ".",                                                                     // Match current directory
+		"ASSIGNMENT_REGEX":       "^(?P<branch>assignment-\\d+)$,^[^/]+/(?P<assignment>assignment-\\d+)$", // Two patterns that can conflict
+		"DEFAULT_BRANCH":         "main",
+		"DRY_RUN":                "true",
+	}
+
+	// Save original environment variables
+	originalVars := map[string]string{}
+	for key := range envVars {
+		originalVars[key] = os.Getenv(key)
+	}
+
+	// Set test environment variables
+	for key, value := range envVars {
+		_ = os.Setenv(key, value)
+	}
+
+	// Restore environment variables after test
+	defer func() {
+		for key, value := range originalVars {
+			if value == "" {
+				_ = os.Unsetenv(key)
+			} else {
+				_ = os.Setenv(key, value)
+			}
+		}
+	}()
+
+	// Create and run the PR creator
+	prCreator, err := creator.New()
+	if err != nil {
+		t.Fatalf("Failed to create PR creator: %v", err)
+	}
+
+	// This should fail due to branch name conflicts
+	err = prCreator.Run()
+	if err == nil {
+		t.Errorf("Expected error due to branch name conflicts, but got none")
+		return
+	}
+
+	// Check that the error message mentions branch name conflicts
+	if !strings.Contains(err.Error(), "branch name") && !strings.Contains(err.Error(), "conflict") {
+		t.Errorf("Expected error to mention branch name conflicts, but got: %s", err.Error())
+	}
+
+	t.Logf("Correctly detected branch name conflict: %s", err.Error())
+}

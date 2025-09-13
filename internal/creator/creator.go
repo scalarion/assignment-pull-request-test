@@ -595,6 +595,37 @@ type BranchToProcess struct {
 	BranchName     string
 }
 
+// validateBranchNameUniqueness checks that all assignments generate unique branch names
+// Returns an error if duplicates are found, with details about conflicting assignments
+func (c *Creator) validateBranchNameUniqueness(assignments []string) error {
+	branchToAssignments := make(map[string][]string)
+
+	// Collect all branch names and track which assignments generate them
+	for _, assignmentPath := range assignments {
+		branchName, matched := c.extractBranchName(assignmentPath)
+		if !matched {
+			// Skip assignments that don't match any pattern - they'll be skipped during processing anyway
+			continue
+		}
+
+		branchToAssignments[branchName] = append(branchToAssignments[branchName], assignmentPath)
+	}
+
+	// Check for duplicates
+	var conflicts []string
+	for branchName, assignmentPaths := range branchToAssignments {
+		if len(assignmentPaths) > 1 {
+			conflicts = append(conflicts, fmt.Sprintf("Branch '%s' would be created by multiple assignments: %v", branchName, assignmentPaths))
+		}
+	}
+
+	if len(conflicts) > 0 {
+		return fmt.Errorf("branch name conflicts detected:\n  %s", strings.Join(conflicts, "\n  "))
+	}
+
+	return nil
+}
+
 // processAssignments processes all found assignments and creates branches/PRs as needed
 func (c *Creator) processAssignments() error {
 	assignments, err := c.findAssignments()
@@ -605,6 +636,11 @@ func (c *Creator) processAssignments() error {
 	if len(assignments) == 0 {
 		fmt.Println("No assignments found matching the criteria")
 		return nil
+	}
+
+	// Validate that all assignments generate unique branch names
+	if err := c.validateBranchNameUniqueness(assignments); err != nil {
+		return fmt.Errorf("branch name validation failed: %w", err)
 	}
 
 	// Phase 0: Fetch all remote branches to ensure complete local state

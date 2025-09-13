@@ -245,7 +245,7 @@ func TestHasNamedGroups(t *testing.T) {
 	}{
 		{
 			name:     "pattern with named groups",
-			pattern:  `^(?P<type>assignment)-(?P<number>\d+)$`,
+			pattern:  `^(?P<01_type>assignment)-(?P<02_number>\d+)$`,
 			expected: true,
 		},
 		{
@@ -897,6 +897,102 @@ func TestCreateGenericPullRequestBody(t *testing.T) {
 			for _, section := range requiredSections {
 				if !strings.Contains(body, section) {
 					t.Errorf("Expected body to contain section '%s'", section)
+				}
+			}
+		})
+	}
+}
+
+// TestValidateBranchNameUniqueness tests the branch name uniqueness validation
+func TestValidateBranchNameUniqueness(t *testing.T) {
+	// Create a test creator with patterns that could potentially create conflicts
+	creator := &Creator{
+		assignmentPatterns: []*regexp.Regexp{
+			// Pattern 1: Simple assignment pattern
+			regexp.MustCompile(`^(?P<branch>assignment-\d+)$`),
+			// Pattern 2: Course pattern that strips the course part
+			regexp.MustCompile(`^[^/]+/(?P<assignment>assignment-\d+)$`),
+			// Pattern 3: Multi-part pattern
+			regexp.MustCompile(`^(?P<type>homework)/(?P<name>hw-\d+)$`),
+		},
+	}
+
+	tests := []struct {
+		name          string
+		assignments   []string
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name: "no conflicts - all unique branches",
+			assignments: []string{
+				"assignment-1",
+				"CS101/assignment-2",
+				"homework/hw-1",
+			},
+			expectError: false,
+		},
+		{
+			name: "conflict - same branch name from different patterns",
+			assignments: []string{
+				"assignment-1",       // matches pattern 1, branch: assignment-1
+				"CS101/assignment-1", // matches pattern 2, branch: assignment-1 (conflict!)
+			},
+			expectError:   true,
+			errorContains: "Branch 'assignment-1' would be created by multiple assignments",
+		},
+		{
+			name: "multiple conflicts",
+			assignments: []string{
+				"assignment-1",
+				"CS101/assignment-1", // first conflict
+				"homework/hw-2",
+				"different/hw-2", // second conflict if this pattern existed
+			},
+			expectError:   true,
+			errorContains: "assignment-1",
+		},
+		{
+			name: "no conflicts - unmatched assignments ignored",
+			assignments: []string{
+				"assignment-1",
+				"unmatched/path/not/matching/any/pattern",
+				"unmatched/path/not/matching/any/pattern/assignment-1",
+				"unmatched/path/not/matching/any/pattern/hw-1",
+				"homework/hw-1",
+			},
+			expectError: false,
+		},
+		{
+			name:        "empty assignments list",
+			assignments: []string{},
+			expectError: false,
+		},
+		{
+			name: "only unmatched assignments",
+			assignments: []string{
+				"unmatched/path1",
+				"another/unmatched/path2",
+			},
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := creator.validateBranchNameUniqueness(tt.assignments)
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("Expected error but got none")
+					return
+				}
+				if tt.errorContains != "" && !strings.Contains(err.Error(), tt.errorContains) {
+					t.Errorf("Expected error to contain '%s', but got: %s", tt.errorContains, err.Error())
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Expected no error but got: %s", err.Error())
 				}
 			}
 		})
