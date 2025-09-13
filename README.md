@@ -204,6 +204,64 @@ find . -name "assignment-*" -type d      # Check directory structure
 go version && make check                 # Verify environment
 ```
 
+## Git Post-Checkout Hook
+
+The repository includes a Git post-checkout hook that automatically configures
+sparse-checkout when switching to assignment branches.
+
+### Installation
+
+**Quick Install**:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/majikmate/assignment-pull-request/main/install-hook.sh | bash
+```
+
+**Manual Setup**:
+
+```bash
+# Configure global hooks directory
+mkdir -p ~/.githooks
+git config --global core.hooksPath ~/.githooks
+
+# Build and install the hook
+git clone https://github.com/majikmate/assignment-pull-request.git
+cd assignment-pull-request
+go build -o ~/.githooks/post-checkout ./cmd/githook
+chmod +x ~/.githooks/post-checkout
+```
+
+### How It Works
+
+1. **Workflow Detection**: Scans `.github/workflows/` for
+   assignment-pull-request action usage
+2. **Pattern Extraction**: Extracts `assignments-root-regex` and
+   `assignment-regex` from workflow configurations
+3. **Branch Matching**: When you checkout a branch, checks if it matches any
+   assignment folder patterns
+4. **Sparse Checkout**: If matched, configures Git to show only the relevant
+   assignment folders
+
+### Example Workflow
+
+```bash
+# You have assignments/assignment-1/, assignments/assignment-2/ folders
+# Workflow uses: assignment-regex: "^(?P<branch>assignment-\d+)$"
+
+git checkout assignment-1  # Hook runs automatically
+# Git sparse-checkout now shows:
+# - Root files (README.md, etc.)
+# - .github/ directory  
+# - assignments/assignment-1/ folder only
+```
+
+### Benefits
+
+- **Focus**: See only relevant assignment files
+- **Performance**: Faster git operations with fewer files
+- **Organization**: Cleaner workspace when working on specific assignments
+- **Automation**: No manual sparse-checkout configuration needed
+
 ## Architecture
 
 **Standard Go Project Layout**:

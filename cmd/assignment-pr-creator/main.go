@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	prCreator, err := creator.New()
+	prCreator, err := creator.NewFromEnv()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)

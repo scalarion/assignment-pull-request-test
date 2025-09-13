@@ -1,0 +1,73 @@
+package constants
+
+// Default configuration values for the Assignment Pull Request Creator
+const (
+	// DefaultAssignmentsRootRegex is the default regex pattern for assignment root directories
+	DefaultAssignmentsRootRegex = "^assignments$"
+
+	// DefaultAssignmentRegex is the default regex pattern for assignment folders with named groups
+	DefaultAssignmentRegex = `^(?P<branch>assignment-\d+)$`
+
+	// DefaultBranch is the default branch name for pull requests
+	DefaultBranch = "main"
+
+	// DefaultDryRun is the default dry-run mode setting
+	DefaultDryRun = "false"
+
+	// ActionName is the name used to identify this action in workflows
+	ActionName = "assignment-pull-request"
+)
+
+// Environment variable names
+const (
+	// EnvGitHubToken is the environment variable for GitHub token
+	EnvGitHubToken = "GITHUB_TOKEN"
+
+	// EnvGitHubRepository is the environment variable for repository name
+	EnvGitHubRepository = "GITHUB_REPOSITORY"
+
+	// EnvAssignmentsRootRegex is the environment variable for assignment root regex patterns
+	EnvAssignmentsRootRegex = "ASSIGNMENTS_ROOT_REGEX"
+
+	// EnvAssignmentRegex is the environment variable for assignment regex patterns
+	EnvAssignmentRegex = "ASSIGNMENT_REGEX"
+
+	// EnvDefaultBranch is the environment variable for default branch name
+	EnvDefaultBranch = "DEFAULT_BRANCH"
+
+	// EnvDryRun is the environment variable for dry-run mode
+	EnvDryRun = "DRY_RUN"
+)
+
+// Common patterns and values
+const (
+	// GitHubActionsWorkflowDir is the directory containing GitHub Actions workflows
+	GitHubActionsWorkflowDir = ".github/workflows"
+
+	// GitHubWorkflowTemplatesDir is the directory containing GitHub workflow templates
+	GitHubWorkflowTemplatesDir = ".github/workflow-templates"
+
+	// SparseCheckoutFile is the path to git sparse-checkout configuration
+	SparseCheckoutFile = ".git/info/sparse-checkout"
+
+	// ReadmeFileName is the standard README file name
+	ReadmeFileName = "README.md"
+
+	// InstructionsFileName is the standard instructions file name
+	InstructionsFileName = "instructions.md"
+
+	// InstructionsFileNameUpper is the uppercase variant of instructions file name
+	InstructionsFileNameUpper = "INSTRUCTIONS.md"
+)
+
+// File extensions and patterns
+const (
+	// YamlExtension is the YAML file extension
+	YamlExtension = ".yml"
+
+	// YamlAltExtension is the alternative YAML file extension
+	YamlAltExtension = ".yaml"
+
+	// MarkdownExtension is the Markdown file extension
+	MarkdownExtension = ".md"
+)

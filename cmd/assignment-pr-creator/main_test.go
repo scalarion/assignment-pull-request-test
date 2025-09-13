@@ -86,7 +86,7 @@ func TestMainIntegration(t *testing.T) {
 			}
 
 			// Create creator and run
-			prCreator, err := creator.New()
+			prCreator, err := creator.NewFromEnv()
 			if tt.wantErr {
 				if err == nil {
 					t.Error("Expected error during creator initialization")
@@ -212,7 +212,7 @@ func TestAssignmentDiscovery(t *testing.T) {
 			_ = os.Setenv("ASSIGNMENTS_ROOT_REGEX", tt.assignmentsRootRegex)
 			_ = os.Setenv("ASSIGNMENT_REGEX", tt.assignmentRegex)
 
-			prCreator, err := creator.New()
+			prCreator, err := creator.NewFromEnv()
 			if err != nil {
 				t.Fatalf("Failed to create PR creator: %v", err)
 			}
@@ -309,7 +309,7 @@ Absolute path (should not be changed):
 	}()
 
 	// Create and run creator
-	prCreator, err := creator.New()
+	prCreator, err := creator.NewFromEnv()
 	if err != nil {
 		t.Fatalf("Failed to create PR creator: %v", err)
 	}
@@ -442,7 +442,7 @@ func TestComplexWorkflow(t *testing.T) {
 			_ = os.Setenv("ASSIGNMENTS_ROOT_REGEX", tt.assignmentsRootRegex)
 			_ = os.Setenv("ASSIGNMENT_REGEX", tt.assignmentRegex)
 
-			prCreator, err := creator.New()
+			prCreator, err := creator.NewFromEnv()
 			if err != nil {
 				t.Fatalf("Failed to create PR creator for %s: %v", tt.description, err)
 			}
@@ -497,7 +497,7 @@ func BenchmarkFullWorkflow(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		prCreator, err := creator.New()
+		prCreator, err := creator.NewFromEnv()
 		if err != nil {
 			b.Fatalf("Failed to create PR creator: %v", err)
 		}
@@ -573,7 +573,7 @@ func TestBranchNameConflictValidation(t *testing.T) {
 	}()
 
 	// Create and run the PR creator
-	prCreator, err := creator.New()
+	prCreator, err := creator.NewFromEnv()
 	if err != nil {
 		t.Fatalf("Failed to create PR creator: %v", err)
 	}

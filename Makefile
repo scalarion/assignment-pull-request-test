@@ -35,6 +35,22 @@ build: clean
 	$(GOBUILD) -o $(BINARY_PATH) $(CMD_PATH)
 	@echo "✅ Binary built at $(BINARY_PATH)"
 
+## build-hook: Build the post-checkout hook
+build-hook:
+	@echo "Building post-checkout hook..."
+	@mkdir -p bin
+	$(GOBUILD) -o ./bin/post-checkout ./cmd/githook
+	@echo "✅ Post-checkout hook built at ./bin/post-checkout"
+
+## install-hook: Install the post-checkout hook globally
+install-hook: build-hook
+	@echo "Installing post-checkout hook..."
+	@mkdir -p ~/.githooks
+	@cp ./bin/post-checkout ~/.githooks/post-checkout
+	@chmod +x ~/.githooks/post-checkout
+	@git config --global core.hooksPath ~/.githooks
+	@echo "✅ Post-checkout hook installed at ~/.githooks/post-checkout"
+
 ## test: Run all tests
 test:
 	@echo "Running tests..."
