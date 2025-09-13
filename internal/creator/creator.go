@@ -19,8 +19,8 @@ import (
 // Config holds configuration for the PR creator
 type Config struct {
 	GitHubToken          string
-	AssignmentsRootRegex string
-	AssignmentRegex      string
+	AssignmentsRootRegex []string
+	AssignmentRegex      []string
 	RepositoryName       string
 	DefaultBranch        string
 	DryRun               bool
@@ -28,14 +28,14 @@ type Config struct {
 
 // Creator is the main Assignment PR Creator
 type Creator struct {
-	config              *Config
-	gitOps              *git.Operations
-	githubClient        *github.Client
-	rootPattern         *regexp.Regexp
-	assignmentPattern   *regexp.Regexp
-	createdBranches     []string
-	createdPullRequests []string
-	pendingPushes       []string
+	config               *Config
+	gitOps               *git.Operations
+	githubClient         *github.Client
+	rootPatterns         []*regexp.Regexp
+	assignmentPatterns   []*regexp.Regexp
+	createdBranches      []string
+	createdPullRequests  []string
+	pendingPushes        []string
 }
 
 // New creates a new Assignment PR Creator with environment variables
@@ -43,8 +43,8 @@ func New() (*Creator, error) {
 	config := &Config{
 		GitHubToken:          os.Getenv("GITHUB_TOKEN"),
 		RepositoryName:       os.Getenv("GITHUB_REPOSITORY"),
-		AssignmentsRootRegex: getEnvWithDefault("ASSIGNMENTS_ROOT_REGEX", "^assignments$"),
-		AssignmentRegex:      getEnvWithDefault("ASSIGNMENT_REGEX", `^assignment-\d+$`),
+		AssignmentsRootRegex: parseRegexPatterns(getEnvWithDefault("ASSIGNMENTS_ROOT_REGEX", "^assignments$")),
+		AssignmentRegex:      parseRegexPatterns(getEnvWithDefault("ASSIGNMENT_REGEX", `^(?P<branch>assignment-\d+)$`)),
 		DefaultBranch:        getEnvWithDefault("DEFAULT_BRANCH", "main"),
 		DryRun:               isDryRun(getEnvWithDefault("DRY_RUN", "false")),
 	}
@@ -57,25 +57,33 @@ func New() (*Creator, error) {
 	}
 
 	// Compile regex patterns
-	rootPattern, err := regexp.Compile(config.AssignmentsRootRegex)
-	if err != nil {
-		return nil, fmt.Errorf("invalid assignments root regex: %w", err)
+	rootPatterns := make([]*regexp.Regexp, 0, len(config.AssignmentsRootRegex))
+	for _, pattern := range config.AssignmentsRootRegex {
+		compiled, err := regexp.Compile(pattern)
+		if err != nil {
+			return nil, fmt.Errorf("invalid assignments root regex '%s': %w", pattern, err)
+		}
+		rootPatterns = append(rootPatterns, compiled)
 	}
 
-	assignmentPattern, err := regexp.Compile(config.AssignmentRegex)
-	if err != nil {
-		return nil, fmt.Errorf("invalid assignment regex: %w", err)
+	assignmentPatterns := make([]*regexp.Regexp, 0, len(config.AssignmentRegex))
+	for _, pattern := range config.AssignmentRegex {
+		compiled, err := regexp.Compile(pattern)
+		if err != nil {
+			return nil, fmt.Errorf("invalid assignment regex '%s': %w", pattern, err)
+		}
+		assignmentPatterns = append(assignmentPatterns, compiled)
 	}
 
 	creator := &Creator{
-		config:              config,
-		gitOps:              git.NewOperations(config.DryRun),
-		githubClient:        github.NewClient(config.GitHubToken, config.RepositoryName, config.DryRun),
-		rootPattern:         rootPattern,
-		assignmentPattern:   assignmentPattern,
-		createdBranches:     make([]string, 0),
+		config:             config,
+		gitOps:             git.NewOperations(config.DryRun),
+		githubClient:       github.NewClient(config.GitHubToken, config.RepositoryName, config.DryRun),
+		rootPatterns:       rootPatterns,
+		assignmentPatterns: assignmentPatterns,
+		createdBranches:    make([]string, 0),
 		createdPullRequests: make([]string, 0),
-		pendingPushes:       make([]string, 0),
+		pendingPushes:      make([]string, 0),
 	}
 
 	return creator, nil
@@ -89,9 +97,84 @@ func getEnvWithDefault(key, defaultValue string) string {
 	return defaultValue
 }
 
+// parseRegexPatterns parses a comma-separated string of regex patterns into a slice
+func parseRegexPatterns(patterns string) []string {
+	if patterns == "" {
+		return []string{}
+	}
+	
+	// Split by comma and trim whitespace
+	parts := strings.Split(patterns, ",")
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
+}
+
 // isDryRun checks if dry run mode is enabled
 func isDryRun(dryRunStr string) bool {
 	return strings.ToLower(dryRunStr) == "true" || dryRunStr == "1" || strings.ToLower(dryRunStr) == "yes"
+}
+
+// extractBranchName tries to match assignment path against patterns and extract branch name
+// Returns the extracted branch name and true if matched, empty string and false if no match
+func (c *Creator) extractBranchName(assignmentPath string) (string, bool) {
+	for _, pattern := range c.assignmentPatterns {
+		matches := pattern.FindStringSubmatch(assignmentPath)
+		if matches != nil {
+			names := pattern.SubexpNames()
+			var branchParts []string
+			
+			// Look for named groups and collect them
+			for i, name := range names {
+				if name != "" && i < len(matches) && matches[i] != "" {
+					part := strings.TrimSpace(matches[i])
+					if part != "" {
+						branchParts = append(branchParts, part)
+					}
+				}
+			}
+			
+			// If we found named groups, combine them
+			if len(branchParts) > 0 {
+				branchName := strings.Join(branchParts, "-")
+				// Sanitize the extracted branch name
+				branchName = strings.ToLower(branchName)
+				branchName = regexp.MustCompile(`[^a-z0-9\-]`).ReplaceAllString(branchName, "-")
+				branchName = regexp.MustCompile(`-+`).ReplaceAllString(branchName, "-")
+				branchName = strings.Trim(branchName, "-")
+				return branchName, true
+			}
+			
+			// If no named groups found, look for "branch" specifically
+			for i, name := range names {
+				if name == "branch" && i < len(matches) {
+					branchName := strings.TrimSpace(matches[i])
+					if branchName != "" {
+						branchName = strings.ToLower(branchName)
+						branchName = regexp.MustCompile(`[^a-z0-9\-]`).ReplaceAllString(branchName, "-")
+						branchName = regexp.MustCompile(`-+`).ReplaceAllString(branchName, "-")
+						branchName = strings.Trim(branchName, "-")
+						return branchName, true
+					}
+				}
+			}
+			
+			// Fall back to using the entire match
+			if len(matches) > 0 {
+				branchName := strings.TrimSpace(matches[0])
+				if branchName != "" {
+					branchName = c.sanitizeBranchName(branchName)
+					return branchName, true
+				}
+			}
+		}
+	}
+	return "", false
 }
 
 // sanitizeBranchName sanitizes assignment path to create a valid branch name
@@ -282,8 +365,16 @@ func (c *Creator) findAssignments() ([]string, error) {
 
 		dirName := d.Name()
 
-		// Check if this directory matches the root pattern
-		if c.rootPattern.MatchString(dirName) {
+		// Check if this directory matches any of the root patterns
+		matchesRootPattern := false
+		for _, pattern := range c.rootPatterns {
+			if pattern.MatchString(dirName) {
+				matchesRootPattern = true
+				break
+			}
+		}
+		
+		if matchesRootPattern {
 			fmt.Printf("Found assignment root: %s\n", path)
 
 			// Now scan for individual assignments within this root
@@ -301,15 +392,16 @@ func (c *Creator) findAssignments() ([]string, error) {
 					return nil
 				}
 
-				assignmentDirName := assignmentD.Name()
-				if c.assignmentPattern.MatchString(assignmentDirName) {
-					// Get relative path from workspace root
-					relativePath, err := filepath.Rel(workspaceRoot, assignmentPath)
-					if err != nil {
-						return err
-					}
+				// Get relative path from workspace root for pattern matching
+				relativePath, err := filepath.Rel(workspaceRoot, assignmentPath)
+				if err != nil {
+					return err
+				}
+
+				// Try to extract branch name from the full path
+				if branchName, matched := c.extractBranchName(relativePath); matched {
 					assignments = append(assignments, relativePath)
-					fmt.Printf("Found assignment: %s\n", relativePath)
+					fmt.Printf("Found assignment: %s (branch: %s)\n", relativePath, branchName)
 				}
 
 				return nil
@@ -381,7 +473,11 @@ func (c *Creator) processAssignments() error {
 	var branchesToProcess []BranchToProcess
 
 	for _, assignmentPath := range assignments {
-		branchName := c.sanitizeBranchName(assignmentPath)
+		branchName, matched := c.extractBranchName(assignmentPath)
+		if !matched {
+			fmt.Printf("Skipping assignment %s: no regex pattern matched\n", assignmentPath)
+			continue
+		}
 
 		fmt.Printf("\nProcessing assignment: %s\n", assignmentPath)
 		fmt.Printf("Branch name: %s\n", branchName)

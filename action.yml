@@ -8,13 +8,13 @@ inputs:
     required: false
     default: "main"
   assignments-root-regex:
-    description: "Regular expression to match assignment root folder paths"
+    description: "Comma-separated list of regular expressions to match assignment root folder paths"
     required: false
     default: "^assignments$"
   assignment-regex:
-    description: "Regular expression to match assignment folders within the assignments folder"
+    description: "Comma-separated list of regular expressions to match assignment paths and extract branch names using named groups. Use (?P<branch>...) to capture the branch name."
     required: false
-    default: '^assignment-\d+$'
+    default: '^(?P<branch>assignment-\d+)$'
   github-token:
     description: "GitHub token for API access"
     required: true

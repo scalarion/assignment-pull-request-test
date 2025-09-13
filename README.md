@@ -52,46 +52,39 @@ GITHUB_TOKEN=your_token GITHUB_REPOSITORY=owner/repo make run-live
 
 ### Environment Variables
 
-| Variable                 | Required | Default            | Description                             |
-| ------------------------ | -------- | ------------------ | --------------------------------------- |
-| `GITHUB_TOKEN`           | ✅       | -                  | GitHub personal access token            |
-| `GITHUB_REPOSITORY`      | ✅       | -                  | Repository name (`owner/repo`)          |
-| `ASSIGNMENTS_ROOT_REGEX` | ❌       | `^assignments$`    | Pattern for assignment root directories |
-| `ASSIGNMENT_REGEX`       | ❌       | `^assignment-\d+$` | Pattern for individual assignments      |
-| `DEFAULT_BRANCH`         | ❌       | `main`             | Default branch name                     |
-| `DRY_RUN`                | ❌       | `false`            | Enable simulation mode                  |
+| Variable                 | Required | Default                        | Description                                                      |
+| ------------------------ | -------- | ------------------------------ | ---------------------------------------------------------------- |
+| `GITHUB_TOKEN`           | ✅       | -                              | GitHub personal access token                                     |
+| `GITHUB_REPOSITORY`      | ✅       | -                              | Repository name (`owner/repo`)                                   |
+| `ASSIGNMENTS_ROOT_REGEX` | ❌       | `^assignments$`                | Comma-separated patterns for assignment root directories         |
+| `ASSIGNMENT_REGEX`       | ❌       | `^(?P<branch>assignment-\d+)$` | Comma-separated patterns with named groups for branch extraction |
+| `DEFAULT_BRANCH`         | ❌       | `main`                         | Default branch name                                              |
+| `DRY_RUN`                | ❌       | `false`                        | Enable simulation mode                                           |
 
 ### GitHub Action Inputs
 
-```yaml
+````yaml
 - uses: majikmate/assignment-pull-request@v1
   with:
-      github-token: ${{ secrets.GITHUB_TOKEN }}
-      assignments-root-regex: "^(assignments|homework)$"
-      assignment-regex: "^(assignment|hw)-\\d+$"
-      default-branch: "main"
-      dry-run: "false"
-```
-
-## Project Structure
+    github-token: ${{ secrets.GITHUB_TOKEN }}
+    assignments-root-regex: "^assignments$,^homework$,^labs$"
+    assignment-regex: "^(?P<branch>assignment-\\d+)$,^(?P<subject>[^/]+)/(?P<number>\\d+)-assignment-(?P<id>\\d+)$"
+    default-branch: "main"
+    dry-run: "false"
+```## Project Structure
 
 This project follows the
 [Standard Go Project Layout](https://github.com/golang-standards/project-layout):
+````
 
-```
-assignment-pull-request/
-├── cmd/assignment-pr-creator/      # Main application
-├── internal/                       # Private packages
-│   ├── creator/                    # Business logic
-│   ├── git/                       # Git operations  
-│   └── github/                    # GitHub API client
-├── bin/                           # Built binaries
-├── tests/                         # Test fixtures
-├── examples/                      # Usage examples
-├── Makefile                       # Build commands
-└── go.mod                         # Go module
-```
+assignment-pull-request/ ├── cmd/assignment-pr-creator/ # Main application ├──
+internal/ # Private packages │ ├── creator/ # Business logic │ ├── git/ # Git
+operations\
+│ └── github/ # GitHub API client ├── bin/ # Built binaries ├── test/ # Test
+fixtures ├── examples/ # Usage examples ├── Makefile # Build commands └── go.mod
+# Go module
 
+````
 ## Development
 
 ### Prerequisites
@@ -113,7 +106,7 @@ make fmt         # Format code
 make clean       # Clean artifacts
 make check       # All quality checks
 make install     # Install to GOPATH/bin
-```
+````
 
 ### Architecture
 
@@ -158,12 +151,41 @@ my-course/
 ### Custom Patterns
 
 ```bash
-# Match multiple root directories
-ASSIGNMENTS_ROOT_REGEX="^(assignments|homework|labs)$"
+# Single pattern (backward compatible)
+ASSIGNMENTS_ROOT_REGEX="^assignments$"
 
-# Match different naming conventions
-ASSIGNMENT_REGEX="^(assignment|hw|lab)-\d+$"
+# Multiple patterns using comma separation
+ASSIGNMENTS_ROOT_REGEX="^assignments$,^homework$,^labs$"
+
+# Complex patterns with alternation (single regex)
+ASSIGNMENTS_ROOT_REGEX="^(assignments|homework|labs)$"
 ```
+
+### Assignment Extraction Patterns
+
+The assignment regex now supports **named groups** for extracting custom branch
+names from paths:
+
+```bash
+# Simple extraction - path: assignment-01 → branch: assignment-01
+ASSIGNMENT_REGEX="^(?P<branch>assignment-\d+)$"
+
+# Subject-based extraction - path: 20-assignments/CSS/01-assignment-01 → branch: css-assignment-01  
+ASSIGNMENT_REGEX="^[^/]+/(?P<subject>[^/]+)/\d+-(?P<type>assignment)-(?P<number>\d+)$"
+
+# Complex extraction - path: course/module-1/hw-03 → branch: module-1-hw-03
+ASSIGNMENT_REGEX="^[^/]+/(?P<module>[^/]+)/(?P<assignment>[^/]+)$"
+
+# Multiple patterns for different structures
+ASSIGNMENT_REGEX="^(?P<branch>assignment-\d+)$,^(?P<course>[^/]+)/(?P<week>week-\d+)/(?P<type>hw)-(?P<number>\d+)$"
+```
+
+**How it works:**
+
+- Use `(?P<name>...)` to create named capture groups
+- All named groups are joined with hyphens to create the branch name
+- Branch names are automatically sanitized (lowercase, special chars → hyphens)
+- First matching pattern wins
 
 ### Testing Patterns
 
@@ -171,10 +193,22 @@ ASSIGNMENT_REGEX="^(assignment|hw|lab)-\d+$"
 # Safe testing with dry-run
 DRY_RUN=true GITHUB_TOKEN=dummy GITHUB_REPOSITORY=test/repo make run
 
-# Test custom patterns
+# Test simple extraction
 DRY_RUN=true \
-ASSIGNMENTS_ROOT_REGEX="^homework$" \
-ASSIGNMENT_REGEX="^hw-\d+$" \
+ASSIGNMENTS_ROOT_REGEX="^assignments$" \
+ASSIGNMENT_REGEX="^(?P<branch>assignment-\d+)$" \
+make run
+
+# Test complex path extraction (e.g., 20-assignments/CSS/01-assignment-01 → css-assignment-01)
+DRY_RUN=true \
+ASSIGNMENTS_ROOT_REGEX="^20-assignments$" \
+ASSIGNMENT_REGEX="^20-assignments/\d+-(?P<subject>[^/]+)/\d+-(?P<assignment>[^/]+)$" \
+make run
+
+# Test multiple patterns with comma separation
+DRY_RUN=true \
+ASSIGNMENTS_ROOT_REGEX="^assignments$,^homework$,^labs$" \
+ASSIGNMENT_REGEX="^(?P<branch>assignment-\d+)$,^(?P<course>[^/]+)/(?P<type>hw)-(?P<number>\d+)$" \
 make run
 ```
 
@@ -978,37 +1012,34 @@ DRY_RUN=true GITHUB_TOKEN=fake_token GITHUB_REPOSITORY=owner/repo python create_
 cd tests && python test_local.py discover
 
 # Quick test - test branch sanitization
-cd tests && python test_local.py sanitize "week-1/assignment-1"
+```bash
+# Quick local test with dry-run mode
+DRY_RUN=true GITHUB_TOKEN=dummy GITHUB_REPOSITORY=test/repo make run
 
-# Run full local integration test
-cd tests && python test_local.py
+# Test with custom patterns
+DRY_RUN=true ASSIGNMENT_REGEX="^test/fixtures/assignments/(?P<branch>assignment-\d+)$" make run
 
-# Run comprehensive unit tests (includes dry-run tests)
-python -m pytest tests/test_assignment_creator.py -v
-
-# Run all tests with the test runner
-cd tests && bash test_runner.sh all
+# Test the new extraction features
+DRY_RUN=true ASSIGNMENT_REGEX="^test/fixtures/20-assignments/(?P<subject>\d+-\w+)/(?P<number>\d+-assignment-\d+)$" make run
 ```
 
 ### Test Suite
 
-The repository includes a comprehensive test suite covering:
+The repository includes comprehensive testing using Go's built-in testing framework and dry-run validation:
 
-- **Unit Tests**: `tests/test_assignment_creator.py`
-  - Assignment discovery logic with mocked file systems
-  - Branch name sanitization
-  - Regex pattern validation
-  - Environment configuration
-  - **Dry-run functionality testing**
-  - GitHub API interaction patterns
+- **Dry-run Testing**: Built-in dry-run mode for safe testing
+  - Simulates all operations without making changes
+  - Validates regex patterns and assignment discovery
+  - Tests branch name extraction and sanitization
+  - GitHub API simulation
 
-- **Integration Tests**: `tests/test_local.py`
+- **Integration Testing**: Real directory structure validation
   - End-to-end assignment discovery using realistic test fixtures
-  - Branch name sanitization with real paths
+  - Branch name extraction with real paths
   - Environment variable configuration
   - Cross-platform path handling
 
-- **Test Fixtures**: `tests/fixtures/`
+- **Test Fixtures**: `test/fixtures/`
   - Multiple assignment structures (assignments, homework, labs, projects)
   - Realistic directory hierarchies and naming patterns
   - Edge cases and nested structures
@@ -1020,25 +1051,20 @@ The repository includes a comprehensive test suite covering:
 
 ### Test Commands
 
-````bash
-### Test Commands
 ```bash
-# Use the test runner script (recommended)
-cd tests && bash test_runner.sh help                       # Show all available commands
-cd tests && bash test_runner.sh discovery                  # Discovery only
-cd tests && bash test_runner.sh sanitize                   # Sanitization only
-cd tests && bash test_runner.sh unit                       # Unit tests
-cd tests && bash test_runner.sh all                        # Run all tests
+# Quick dry-run test with default patterns
+make run-dry
 
-# Direct pytest commands
-python -m pytest tests/ -v                     # All unit tests
-python -m pytest tests/ -k "sanitiz"          # Specific test pattern
+# Test with specific assignment root and pattern
+DRY_RUN=true ASSIGNMENTS_ROOT_REGEX="^20-assignments$" ASSIGNMENT_REGEX="^test/fixtures/20-assignments/(?P<subject>\d+-\w+)/(?P<number>\d+-assignment-\d+)$" make run
 
-# Custom environment testing
-cd tests && ASSIGNMENT_REGEX='^hw-\d+$' bash test_runner.sh discovery
-````
+# Test legacy fixture structure
+DRY_RUN=true ASSIGNMENTS_ROOT_REGEX="^assignments$" ASSIGNMENT_REGEX="^test/fixtures/assignments/(?P<path>.*?assignment-\d+)$" make run
 
-````
+# Build and test the binary directly
+make build
+./bin/assignment-pr-creator --help
+```
 ```
 
 ## Examples
