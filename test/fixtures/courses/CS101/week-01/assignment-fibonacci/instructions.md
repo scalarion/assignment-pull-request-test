@@ -11,6 +11,10 @@
 Implement the Fibonacci sequence using multiple approaches to understand
 different programming paradigms.
 
+![Fibonacci Sequence Diagram](static/fibonacci-diagram.png)
+
+![Fibonacci Visual Guide](static/fibonacci-diagram.svg)
+
 ## Learning Objectives
 
 - Understand mathematical sequences in programming
