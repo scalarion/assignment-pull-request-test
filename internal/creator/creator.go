@@ -28,14 +28,14 @@ type Config struct {
 
 // Creator is the main Assignment PR Creator
 type Creator struct {
-	config               *Config
-	gitOps               *git.Operations
-	githubClient         *github.Client
-	rootPatterns         []*regexp.Regexp
-	assignmentPatterns   []*regexp.Regexp
-	createdBranches      []string
-	createdPullRequests  []string
-	pendingPushes        []string
+	config              *Config
+	gitOps              *git.Operations
+	githubClient        *github.Client
+	rootPatterns        []*regexp.Regexp
+	assignmentPatterns  []*regexp.Regexp
+	createdBranches     []string
+	createdPullRequests []string
+	pendingPushes       []string
 }
 
 // New creates a new Assignment PR Creator with environment variables
@@ -76,14 +76,14 @@ func New() (*Creator, error) {
 	}
 
 	creator := &Creator{
-		config:             config,
-		gitOps:             git.NewOperations(config.DryRun),
-		githubClient:       github.NewClient(config.GitHubToken, config.RepositoryName, config.DryRun),
-		rootPatterns:       rootPatterns,
-		assignmentPatterns: assignmentPatterns,
-		createdBranches:    make([]string, 0),
+		config:              config,
+		gitOps:              git.NewOperations(config.DryRun),
+		githubClient:        github.NewClient(config.GitHubToken, config.RepositoryName, config.DryRun),
+		rootPatterns:        rootPatterns,
+		assignmentPatterns:  assignmentPatterns,
+		createdBranches:     make([]string, 0),
 		createdPullRequests: make([]string, 0),
-		pendingPushes:      make([]string, 0),
+		pendingPushes:       make([]string, 0),
 	}
 
 	return creator, nil
@@ -102,7 +102,7 @@ func parseRegexPatterns(patterns string) []string {
 	if patterns == "" {
 		return []string{}
 	}
-	
+
 	// Split by comma and trim whitespace
 	parts := strings.Split(patterns, ",")
 	result := make([]string, 0, len(parts))
@@ -128,7 +128,7 @@ func (c *Creator) extractBranchName(assignmentPath string) (string, bool) {
 		if matches != nil {
 			names := pattern.SubexpNames()
 			var branchParts []string
-			
+
 			// Look for named groups and collect them
 			for i, name := range names {
 				if name != "" && i < len(matches) && matches[i] != "" {
@@ -138,7 +138,7 @@ func (c *Creator) extractBranchName(assignmentPath string) (string, bool) {
 					}
 				}
 			}
-			
+
 			// If we found named groups, combine them
 			if len(branchParts) > 0 {
 				branchName := strings.Join(branchParts, "-")
@@ -149,7 +149,7 @@ func (c *Creator) extractBranchName(assignmentPath string) (string, bool) {
 				branchName = strings.Trim(branchName, "-")
 				return branchName, true
 			}
-			
+
 			// If no named groups found, look for "branch" specifically
 			for i, name := range names {
 				if name == "branch" && i < len(matches) {
@@ -163,7 +163,7 @@ func (c *Creator) extractBranchName(assignmentPath string) (string, bool) {
 					}
 				}
 			}
-			
+
 			// Fall back to using the entire match
 			if len(matches) > 0 {
 				branchName := strings.TrimSpace(matches[0])
@@ -373,7 +373,7 @@ func (c *Creator) findAssignments() ([]string, error) {
 				break
 			}
 		}
-		
+
 		if matchesRootPattern {
 			fmt.Printf("Found assignment root: %s\n", path)
 
