@@ -38,6 +38,19 @@ type Creator struct {
 	pendingPushes       []string
 }
 
+// hasNamedGroups checks if a compiled regex pattern has at least one named group
+func hasNamedGroups(regex *regexp.Regexp) bool {
+	names := regex.SubexpNames()
+	// SubexpNames() returns a slice where the first element is always an empty string
+	// for the entire match, so we start checking from index 1
+	for i := 1; i < len(names); i++ {
+		if names[i] != "" {
+			return true
+		}
+	}
+	return false
+}
+
 // New creates a new Assignment PR Creator with environment variables
 func New() (*Creator, error) {
 	config := &Config{
@@ -72,6 +85,12 @@ func New() (*Creator, error) {
 		if err != nil {
 			return nil, fmt.Errorf("invalid assignment regex '%s': %w", pattern, err)
 		}
+
+		// Sanity check: ensure the regex has named groups for branch name extraction
+		if !hasNamedGroups(compiled) {
+			return nil, fmt.Errorf("assignment regex '%s' must contain at least one named group (e.g., (?P<name>...)) to extract branch names", pattern)
+		}
+
 		assignmentPatterns = append(assignmentPatterns, compiled)
 	}
 

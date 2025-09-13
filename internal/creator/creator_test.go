@@ -156,6 +156,136 @@ func TestNew(t *testing.T) {
 	cleanupEnv()
 }
 
+// TestRegexValidation tests that regex patterns are validated for named groups
+func TestRegexValidation(t *testing.T) {
+	// Clean up any existing environment variables
+	cleanupEnv()
+
+	tests := []struct {
+		name             string
+		assignmentRegex  string
+		shouldFail       bool
+		expectedErrorMsg string
+	}{
+		{
+			name:            "valid regex with named groups",
+			assignmentRegex: `^(?P<type>assignment)-(?P<number>\d+)$`,
+			shouldFail:      false,
+		},
+		{
+			name:            "valid regex with single named group",
+			assignmentRegex: `^(?P<branch>hw-\d+)$`,
+			shouldFail:      false,
+		},
+		{
+			name:             "invalid regex without named groups",
+			assignmentRegex:  `^assignment-\d+$`,
+			shouldFail:       true,
+			expectedErrorMsg: "must contain at least one named group",
+		},
+		{
+			name:             "invalid regex with only unnamed groups",
+			assignmentRegex:  `^(assignment)-(\d+)$`,
+			shouldFail:       true,
+			expectedErrorMsg: "must contain at least one named group",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Set up environment variables
+			envVars := map[string]string{
+				"GITHUB_TOKEN":      "test-token",
+				"GITHUB_REPOSITORY": "test/repo",
+				"ASSIGNMENT_REGEX":  tt.assignmentRegex,
+			}
+
+			for key, value := range envVars {
+				os.Setenv(key, value)
+			}
+			defer cleanupEnv()
+
+			// Try to create a new Creator
+			creator, err := New()
+
+			if tt.shouldFail {
+				if err == nil {
+					t.Errorf("Expected error for regex '%s', but got none", tt.assignmentRegex)
+					return
+				}
+				if !strings.Contains(err.Error(), tt.expectedErrorMsg) {
+					t.Errorf("Expected error message to contain '%s', got: %v", tt.expectedErrorMsg, err)
+				}
+				if creator != nil {
+					t.Error("Creator should be nil when validation fails")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Unexpected error for valid regex '%s': %v", tt.assignmentRegex, err)
+					return
+				}
+				if creator == nil {
+					t.Error("Creator should not be nil for valid regex")
+				}
+			}
+		})
+	}
+}
+
+// TestHasNamedGroups tests the hasNamedGroups helper function
+func TestHasNamedGroups(t *testing.T) {
+	tests := []struct {
+		name     string
+		pattern  string
+		expected bool
+	}{
+		{
+			name:     "pattern with named groups",
+			pattern:  `^(?P<type>assignment)-(?P<number>\d+)$`,
+			expected: true,
+		},
+		{
+			name:     "pattern with single named group",
+			pattern:  `^(?P<branch>hw-\d+)$`,
+			expected: true,
+		},
+		{
+			name:     "pattern without any groups",
+			pattern:  `^assignment-\d+$`,
+			expected: false,
+		},
+		{
+			name:     "pattern with only unnamed groups",
+			pattern:  `^(assignment)-(\d+)$`,
+			expected: false,
+		},
+		{
+			name:     "pattern with mixed named and unnamed groups",
+			pattern:  `^(?P<type>assignment)-(group-\d+)-(?P<number>\d+)$`,
+			expected: true,
+		},
+		{
+			name:     "empty pattern",
+			pattern:  ``,
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			regex, err := regexp.Compile(tt.pattern)
+			if err != nil {
+				t.Fatalf("Failed to compile regex '%s': %v", tt.pattern, err)
+			}
+
+			result := hasNamedGroups(regex)
+			if result != tt.expected {
+				t.Errorf("hasNamedGroups('%s') = %t, expected %t", tt.pattern, result, tt.expected)
+			}
+		})
+	}
+}
+
 // TestGetEnvWithDefault tests environment variable parsing with defaults
 func TestGetEnvWithDefault(t *testing.T) {
 	tests := []struct {
