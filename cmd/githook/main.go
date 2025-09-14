@@ -7,7 +7,6 @@ import (
 
 	"assignment-pull-request/internal/assignment"
 	"assignment-pull-request/internal/checkout"
-	"assignment-pull-request/internal/git"
 	"assignment-pull-request/internal/workflow"
 )
 
@@ -17,8 +16,6 @@ func main() {
 		log.Fatal("Usage: post-checkout <old-ref> <new-ref> <branch-checkout-flag>")
 	}
 
-	oldRef := os.Args[1]
-	newRef := os.Args[2]
 	branchCheckout := os.Args[3]
 
 	// Only process branch checkouts
@@ -26,33 +23,23 @@ func main() {
 		return
 	}
 
-	// Get current branch name for display
-	gitOps := git.NewOperations(false)
-	currentBranch, err := gitOps.GetCurrentBranch()
-	if err != nil {
-		log.Printf("Failed to get current branch: %v", err)
-		return
-	}
-
-	fmt.Printf("Post-checkout hook: switched from %s to %s (branch: %s)\n", oldRef[:8], newRef[:8], currentBranch)
-
-	// Parse workflow files to find assignment configurations
-	workflowProcessor := workflow.New()
-	err = workflowProcessor.ParseAllFiles()
-	if err != nil {
-		log.Printf("Failed to parse workflow files: %v", err)
-		os.Exit(0)
-	}
-
 	// Process the configuration
-	err = processAssignmentBranch(workflowProcessor)
+	err := processAssignmentBranch()
 	if err != nil {
 		log.Printf("Error processing assignments: %v", err)
 	}
 }
 
 // processAssignmentBranch handles the assignment branch logic
-func processAssignmentBranch(workflowProcessor *workflow.Processor) error {
+func processAssignmentBranch() error {
+	// Parse workflow files to find assignment configurations
+	workflowProcessor := workflow.New()
+	err := workflowProcessor.ParseAllFiles()
+	if err != nil {
+		log.Printf("Failed to parse workflow files: %v", err)
+		os.Exit(0)
+	}
+
 	// Get processors directly
 	rootProcessor := workflowProcessor.RootProcessor()
 	assignmentProcessor := workflowProcessor.AssignmentProcessor()
@@ -70,7 +57,7 @@ func processAssignmentBranch(workflowProcessor *workflow.Processor) error {
 	}
 
 	// Find all assignment folders using assignment package
-	assignmentProc, err := assignment.NewProcessor("", rootProcessor, assignmentProcessor)
+	assignmentProc, err := assignment.NewProcessor(repositoryRoot, rootProcessor, assignmentProcessor)
 	if err != nil {
 		return fmt.Errorf("failed to create assignment processor: %w", err)
 	}
