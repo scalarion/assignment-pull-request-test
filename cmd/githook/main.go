@@ -23,15 +23,21 @@ func main() {
 		return
 	}
 
+	// Get repository root (current working directory)
+	repositoryRoot, err := os.Getwd()
+	if err != nil {
+		return
+	}
+
 	// Process the configuration
-	err := processAssignmentBranch()
+	err = processAssignmentBranch(repositoryRoot)
 	if err != nil {
 		log.Printf("Error processing assignments: %v", err)
 	}
 }
 
 // processAssignmentBranch handles the assignment branch logic
-func processAssignmentBranch() error {
+func processAssignmentBranch(repositoryRoot string) error {
 	// Parse workflow files to find assignment configurations
 	workflowProcessor := workflow.New()
 	err := workflowProcessor.ParseAllFiles()
@@ -48,12 +54,6 @@ func processAssignmentBranch() error {
 	if len(rootProcessor.Patterns()) == 0 || len(assignmentProcessor.Patterns()) == 0 {
 		fmt.Println("No assignment patterns found in workflow files, skipping sparse-checkout configuration")
 		return nil
-	}
-
-	// Get repository root (current working directory)
-	repositoryRoot, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("failed to get current working directory: %w", err)
 	}
 
 	// Find all assignment folders using assignment package
