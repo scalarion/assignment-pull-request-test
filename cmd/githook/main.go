@@ -63,7 +63,7 @@ func processAssignmentBranch() error {
 	}
 
 	// Create checkout processor and configure sparse-checkout
-	checkoutProcessor := checkout.New(assignmentProc, repositoryRoot)
+	checkoutProcessor := checkout.New(repositoryRoot, assignmentProc)
 
 	// Configure sparse-checkout for the current branch
 	err = checkoutProcessor.Configure()

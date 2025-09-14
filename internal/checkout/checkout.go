@@ -18,7 +18,7 @@ type Processor struct {
 }
 
 // New creates a new checkout processor
-func New(assignmentProcessor *assignment.Processor, repositoryRoot string) *Processor {
+func New(repositoryRoot string, assignmentProcessor *assignment.Processor) *Processor {
 	return &Processor{
 		assignmentProcessor: assignmentProcessor,
 		gitOps:              git.NewOperations(false), // Not in dry-run mode
