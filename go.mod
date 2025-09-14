@@ -1,6 +1,6 @@
 module assignment-pull-request
 
-go 1.24.0
+go 1.24.7
 
 require (
 	github.com/google/go-github/v57 v57.0.0
