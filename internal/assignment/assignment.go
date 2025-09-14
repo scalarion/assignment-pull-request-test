@@ -123,7 +123,8 @@ func (ap *Processor) findAssignments() ([]string, error) {
 		rootDir = "."
 	}
 
-	// Walk through the directory tree
+	// First, find all directories that match the root pattern
+	var rootDirectories []string
 	err := filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -150,12 +151,7 @@ func (ap *Processor) findAssignments() ([]string, error) {
 		}
 		for _, rootPattern := range rootPatterns {
 			if rootPattern.MatchString(path) {
-				// Find assignments in this root directory
-				assignmentsInRoot, err := ap.findAssignmentsInDirectory(path)
-				if err != nil {
-					return err
-				}
-				assignments = append(assignments, assignmentsInRoot...)
+				rootDirectories = append(rootDirectories, path)
 				break // Don't check other root patterns for this path
 			}
 		}
@@ -164,7 +160,16 @@ func (ap *Processor) findAssignments() ([]string, error) {
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("error walking directory tree: %w", err)
+		return nil, fmt.Errorf("error finding root directories: %w", err)
+	}
+
+	// Now search for assignments within each root directory
+	for _, rootDirectory := range rootDirectories {
+		assignmentsInRoot, err := ap.findAssignmentsInDirectory(rootDirectory)
+		if err != nil {
+			return nil, err
+		}
+		assignments = append(assignments, assignmentsInRoot...)
 	}
 
 	// Sort assignments
@@ -195,15 +200,29 @@ func (ap *Processor) findAssignmentsInDirectory(rootDir string) ([]string, error
 			return nil
 		}
 
-		// Check if this directory matches any assignment pattern
+		// Get the relative path from the root directory
+		relPath, err := filepath.Rel(rootDir, path)
+		if err != nil {
+			return err
+		}
+
+		// Skip the root directory itself
+		if relPath == "." {
+			return nil
+		}
+
+		// Normalize path separators to forward slashes
+		relPath = filepath.ToSlash(relPath)
+
+		// Check if this relative path matches any assignment pattern
 		assignmentPatterns, err := ap.assignmentPattern.Compiled()
 		if err != nil {
 			return nil
 		}
 		for _, assignmentPattern := range assignmentPatterns {
-			if assignmentPattern.MatchString(path) {
-				assignments = append(assignments, path)
-				break // Don't check other patterns for this path
+			if assignmentPattern.MatchString(relPath) {
+				assignments = append(assignments, path) // Use full path for the result
+				break                                   // Don't check other patterns for this path
 			}
 		}
 
@@ -234,12 +253,62 @@ func (ap *Processor) extractBranchNameFromPath(assignmentPath string) (string, b
 		return "", false
 	}
 
+	// First, find which root directory this assignment belongs to
+	rootPatterns, err := ap.rootPattern.Compiled()
+	if err != nil {
+		return "", false
+	}
+
+	var matchingRootDir string
+	for _, rootPattern := range rootPatterns {
+		// Find the root directory that contains this assignment
+		rootDir := ap.repositoryRoot
+		if rootDir == "" {
+			rootDir = "."
+		}
+
+		err := filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+
+			if info.IsDir() && rootPattern.MatchString(path) {
+				// Check if the assignment path starts with this root path
+				if strings.HasPrefix(assignmentPath, path) {
+					matchingRootDir = path
+					return filepath.SkipDir // Found it, no need to continue
+				}
+			}
+			return nil
+		})
+
+		if err != nil {
+			continue
+		}
+		if matchingRootDir != "" {
+			break
+		}
+	}
+
+	if matchingRootDir == "" {
+		return "", false
+	}
+
+	// Get the relative path from the matching root directory
+	relPath, err := filepath.Rel(matchingRootDir, assignmentPath)
+	if err != nil {
+		return "", false
+	}
+
+	// Normalize path separators to forward slashes
+	relPath = filepath.ToSlash(relPath)
+
 	for _, pattern := range assignmentPatterns {
 		if pattern == nil {
 			continue
 		}
 
-		matches := pattern.FindStringSubmatch(assignmentPath)
+		matches := pattern.FindStringSubmatch(relPath)
 		if matches != nil {
 			names := pattern.SubexpNames()
 			var branchParts []string
