@@ -198,3 +198,64 @@ func (o *Operations) GetRemoteBranches(defaultBranch string) error {
 
 	return nil
 }
+
+// GetCurrentBranch returns the name of the currently checked out branch
+func (o *Operations) GetCurrentBranch() (string, error) {
+	return o.commander.RunCommandWithOutput(
+		"git rev-parse --abbrev-ref HEAD",
+		"Get current branch",
+	)
+}
+
+// EnableSparseCheckout enables Git sparse-checkout feature
+func (o *Operations) EnableSparseCheckout() error {
+	return o.commander.RunCommand(
+		"git config core.sparseCheckout true",
+		"Enable sparse-checkout",
+	)
+}
+
+// DisableSparseCheckout disables Git sparse-checkout feature
+func (o *Operations) DisableSparseCheckout() error {
+	return o.commander.RunCommand(
+		"git config core.sparseCheckout false",
+		"Disable sparse-checkout",
+	)
+}
+
+// ApplyCheckout applies sparse-checkout changes by reading the tree
+func (o *Operations) ApplyCheckout() error {
+	return o.commander.RunCommand(
+		"git read-tree -m -u HEAD",
+		"Apply checkout changes",
+	)
+}
+
+// IsRepository checks if the current directory is a Git repository
+func (o *Operations) IsRepository() (bool, error) {
+	_, err := o.commander.RunCommandWithOutput(
+		"git rev-parse --git-dir",
+		"",
+	)
+	if err != nil {
+		// If the command fails, it's likely not a git repository
+		return false, nil
+	}
+	return true, nil
+}
+
+// GetCommitHash returns the current commit hash
+func (o *Operations) GetCommitHash() (string, error) {
+	return o.commander.RunCommandWithOutput(
+		"git rev-parse HEAD",
+		"Get commit hash",
+	)
+}
+
+// GetShortCommitHash returns the short current commit hash
+func (o *Operations) GetShortCommitHash() (string, error) {
+	return o.commander.RunCommandWithOutput(
+		"git rev-parse --short HEAD",
+		"Get short commit hash",
+	)
+}
