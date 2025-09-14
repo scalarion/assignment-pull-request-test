@@ -6,11 +6,11 @@ on:
       assignments-root-regex:
         description: "Regex pattern for assignment root folders"
         required: false
-        default: "^assignments$"
+        default: "^test/fixtures/assignments$, ^test/fixtures/bootcamp$"
       assignment-regex:
         description: "Regex pattern for assignment folders"
         required: false
-        default: '^assignment-\d+$'
+        default: '^(assignment-\d+)$, ^([^/]+)/([^/]+)$'
       default-branch:
         description: "Default branch for pull requests"
         required: false
