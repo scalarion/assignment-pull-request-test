@@ -103,20 +103,18 @@ clean:
 	@rm -rf ./bin
 	@rm -rf $(TEST_COVERAGE_DIR)
 
-# Create coverage directory
-$(TEST_COVERAGE_DIR):
-	@mkdir -p $(TEST_COVERAGE_DIR)
-
 ## coverage: Run tests with coverage
-coverage: $(TEST_COVERAGE_DIR)
+coverage:
 	@echo "Running tests with coverage..."
+	@mkdir -p $(TEST_COVERAGE_DIR)
 	$(GOTEST) $(TEST_FLAGS) -coverprofile=$(TEST_COVERAGE_FILE) ./...
 	@echo "Coverage summary:"
 	$(GOCMD) tool cover -func=$(TEST_COVERAGE_FILE) | grep -E "(total|\.go:)" | tail -10
 
 ## coverage-html: Generate HTML coverage report
-coverage-html: $(TEST_COVERAGE_DIR)
+coverage-html:
 	@echo "Running tests with coverage for HTML report..."
+	@mkdir -p $(TEST_COVERAGE_DIR)
 	$(GOTEST) $(TEST_FLAGS) -coverprofile=$(TEST_COVERAGE_FILE) ./...
 	@echo "Generating HTML coverage report..."
 	$(GOCMD) tool cover -html=$(TEST_COVERAGE_FILE) -o=$(TEST_HTML_FILE)

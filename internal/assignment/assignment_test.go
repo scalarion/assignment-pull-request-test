@@ -4,8 +4,6 @@ import (
 	"testing"
 )
 
-// Tests moved from creator package since the logic now resides in assignment package
-
 // TestExtractBranchName tests branch name extraction from assignment paths
 func TestExtractBranchName(t *testing.T) {
 	// Test patterns for branch name extraction

@@ -56,32 +56,10 @@ type Creator struct {
 	config              *Config
 	gitOps              *git.Operations
 	githubClient        *github.Client
-	rootPatterns        []*regexp.Regexp
-	assignmentPatterns  []*regexp.Regexp
+	assignmentProcessor *assignment.AssignmentProcessor
 	createdBranches     []string
 	createdPullRequests []string
 	pendingPushes       []string
-}
-
-// getEnvWithDefault returns the environment variable value or a default value if not set
-func getEnvWithDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
-}
-
-// isDryRun checks if dry run mode is enabled
-func isDryRun(dryRunStr string) bool {
-	return strings.ToLower(dryRunStr) == "true" || dryRunStr == "1" || strings.ToLower(dryRunStr) == "yes"
-}
-
-// hasCapturingGroups checks if a compiled regex pattern has at least one capturing group (named or unnamed)
-func hasCapturingGroups(regex *regexp.Regexp) bool {
-	names := regex.SubexpNames()
-	// SubexpNames() returns a slice where the first element is always an empty string
-	// for the entire match. If there are more elements, there are capturing groups
-	return len(names) > 1
 }
 
 // NewWithConfig creates a new Assignment PR Creator with the given configuration
@@ -93,30 +71,17 @@ func NewWithConfig(config *Config) (*Creator, error) {
 		return nil, fmt.Errorf("GITHUB_REPOSITORY environment variable is required")
 	}
 
-	// Compile regex patterns using assignment package
-	rootPatterns, err := assignment.CompilePatterns(config.AssignmentsRootRegex)
+	// Create assignment processor
+	assignmentProcessor, err := assignment.NewAssignmentProcessor("", config.AssignmentsRootRegex, config.AssignmentRegex)
 	if err != nil {
-		return nil, fmt.Errorf("invalid assignments root regex: %w", err)
-	}
-
-	assignmentPatterns, err := assignment.CompilePatterns(config.AssignmentRegex)
-	if err != nil {
-		return nil, fmt.Errorf("invalid assignment regex: %w", err)
-	}
-
-	// Sanity check: ensure the regex has capturing groups for branch name extraction
-	for i, pattern := range assignmentPatterns {
-		if !hasCapturingGroups(pattern) {
-			return nil, fmt.Errorf("assignment regex '%s' must contain at least one capturing group (e.g., (?P<name>...) or (...)) to extract branch names", config.AssignmentRegex[i])
-		}
+		return nil, fmt.Errorf("failed to create assignment processor: %w", err)
 	}
 
 	creator := &Creator{
 		config:              config,
 		gitOps:              git.NewOperations(config.DryRun),
 		githubClient:        github.NewClient(config.GitHubToken, config.RepositoryName, config.DryRun),
-		rootPatterns:        rootPatterns,
-		assignmentPatterns:  assignmentPatterns,
+		assignmentProcessor: assignmentProcessor,
 		createdBranches:     make([]string, 0),
 		createdPullRequests: make([]string, 0),
 		pendingPushes:       make([]string, 0),
@@ -380,43 +345,13 @@ type BranchToProcess struct {
 	BranchName     string
 }
 
-// validateBranchNameUniqueness checks that all assignments generate unique branch names
-// Returns an error if duplicates are found, with details about conflicting assignments
-func (c *Creator) validateBranchNameUniqueness(assignments []string) error {
-	branchToAssignments := make(map[string][]string)
-
-	// Collect all branch names and track which assignments generate them
-	for _, assignmentPath := range assignments {
-		branchName, matched := assignment.ExtractBranchNameFromCompiledPatterns(assignmentPath, c.assignmentPatterns)
-		if !matched {
-			// Skip assignments that don't match any pattern - they'll be skipped during processing anyway
-			continue
-		}
-
-		branchToAssignments[branchName] = append(branchToAssignments[branchName], assignmentPath)
-	}
-
-	// Check for duplicates
-	var conflicts []string
-	for branchName, assignmentPaths := range branchToAssignments {
-		if len(assignmentPaths) > 1 {
-			conflicts = append(conflicts, fmt.Sprintf("Branch '%s' would be created by multiple assignments: %v", branchName, assignmentPaths))
-		}
-	}
-
-	if len(conflicts) > 0 {
-		return fmt.Errorf("branch name conflicts detected:\n  %s", strings.Join(conflicts, "\n  "))
-	}
-
-	return nil
-}
-
 // processAssignments processes all found assignments and creates branches/PRs as needed
 func (c *Creator) processAssignments() error {
-	fmt.Printf("Scanning workspace for assignment roots matching '%s'\n", c.config.AssignmentsRootRegex)
-	fmt.Printf("Looking for assignments matching '%s'\n", c.config.AssignmentRegex)
+	fmt.Printf("Scanning workspace for assignment roots matching '%s'\n", c.assignmentProcessor.GetRootRegexStrings())
+	fmt.Printf("Looking for assignments matching '%s'\n", c.assignmentProcessor.GetAssignmentRegexStrings())
 
-	assignments, err := assignment.FindAssignments(c.config.AssignmentsRootRegex, c.config.AssignmentRegex)
+	// Use assignment processor to discover and validate assignments
+	assignments, err := c.assignmentProcessor.ProcessAssignments()
 	if err != nil {
 		return err
 	}
@@ -424,14 +359,7 @@ func (c *Creator) processAssignments() error {
 	if len(assignments) == 0 {
 		fmt.Println("No assignments found matching the criteria")
 		return nil
-	}
-
-	// Validate that all assignments generate unique branch names
-	if err := c.validateBranchNameUniqueness(assignments); err != nil {
-		return fmt.Errorf("branch name validation failed: %w", err)
-	}
-
-	// Phase 0: Fetch all remote branches to ensure complete local state
+	} // Phase 0: Fetch all remote branches to ensure complete local state
 	fmt.Println("\n=== Phase 0: Syncing with remote ===")
 	if err := c.gitOps.FetchAll(); err != nil {
 		fmt.Println("❌ Failed to fetch remote branches, aborting")
@@ -467,12 +395,9 @@ func (c *Creator) processAssignments() error {
 	fmt.Println("\n=== Phase 2: Local processing ===")
 	var branchesToProcess []BranchToProcess
 
-	for _, assignmentPath := range assignments {
-		branchName, matched := assignment.ExtractBranchNameFromCompiledPatterns(assignmentPath, c.assignmentPatterns)
-		if !matched {
-			fmt.Printf("Skipping assignment %s: no regex pattern matched\n", assignmentPath)
-			continue
-		}
+	for _, assignmentInfo := range assignments {
+		assignmentPath := assignmentInfo.Path
+		branchName := assignmentInfo.BranchName
 
 		fmt.Printf("\nProcessing assignment: %s\n", assignmentPath)
 		fmt.Printf("Branch name: %s\n", branchName)
@@ -639,3 +564,18 @@ func (c *Creator) Run() error {
 
 	return nil
 }
+
+// getEnvWithDefault returns the environment variable value or a default value if not set
+func getEnvWithDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
+
+// isDryRun checks if dry run mode is enabled
+func isDryRun(dryRunStr string) bool {
+	return strings.ToLower(dryRunStr) == "true" || dryRunStr == "1" || strings.ToLower(dryRunStr) == "yes"
+}
+
+
