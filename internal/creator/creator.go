@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"assignment-pull-request/internal/assignment"
 	"assignment-pull-request/internal/constants"
 	"assignment-pull-request/internal/git"
 	"assignment-pull-request/internal/github"
+	"assignment-pull-request/internal/instructions"
 	"assignment-pull-request/internal/regex"
 
 	"golang.org/x/text/cases"
@@ -225,118 +225,10 @@ func (c *Creator) createPullRequest(assignmentPath, branchName string) error {
 	return nil
 }
 
-// createPullRequestBody creates the pull request body content, preferring instructions.md if available
+// createPullRequestBody creates the pull request body content using the instructions processor
 func (c *Creator) createPullRequestBody(assignmentPath string) (string, error) {
-	// Try to find instructions.md in the assignment directory
-	instructionsPath := c.findInstructionsFile(assignmentPath)
-
-	if instructionsPath != "" {
-		content, err := c.readAndProcessInstructions(instructionsPath, assignmentPath)
-		if err != nil {
-			fmt.Printf("Warning: failed to read instructions file '%s': %v\n", instructionsPath, err)
-			fmt.Printf("Falling back to generic template\n")
-		} else {
-			return content, nil
-		}
-	}
-
-	// Fall back to generic template
-	return c.createGenericPullRequestBody(assignmentPath), nil
-}
-
-// findInstructionsFile looks for instructions.md or INSTRUCTIONS.md in the assignment directory
-func (c *Creator) findInstructionsFile(assignmentPath string) string {
-	candidates := []string{
-		filepath.Join(assignmentPath, constants.InstructionsFileName),
-		filepath.Join(assignmentPath, constants.InstructionsFileNameUpper),
-	}
-
-	for _, candidate := range candidates {
-		if _, err := os.Stat(candidate); err == nil {
-			return candidate
-		}
-	}
-
-	return ""
-}
-
-// readAndProcessInstructions reads the instructions file and processes image links
-func (c *Creator) readAndProcessInstructions(instructionsPath, assignmentPath string) (string, error) {
-	content, err := os.ReadFile(instructionsPath)
-	if err != nil {
-		return "", fmt.Errorf("failed to read instructions file: %w", err)
-	}
-
-	processedContent := c.rewriteImageLinks(string(content), assignmentPath)
-
-	// Wrap the content in a nice pull request format
-	wrappedContent := fmt.Sprintf(`## Assignment Instructions
-
-%s
-
----
-
-*This pull request was automatically created by the Assignment Pull Request Creator action.*
-*Original instructions from: %s*
-`, processedContent, filepath.Base(instructionsPath))
-
-	return wrappedContent, nil
-}
-
-// rewriteImageLinks rewrites relative image links to reference the assignment path
-func (c *Creator) rewriteImageLinks(content, assignmentPath string) string {
-	// Regex to match markdown image syntax: ![alt text](relative/path/to/image)
-	imageRegex := regexp.MustCompile(`!\[([^\]]*)\]\(([^)]+)\)`)
-
-	return imageRegex.ReplaceAllStringFunc(content, func(match string) string {
-		submatches := imageRegex.FindStringSubmatch(match)
-		if len(submatches) != 3 {
-			return match // Return original if parsing fails
-		}
-
-		altText := submatches[1]
-		imagePath := submatches[2]
-
-		// Skip if it's already an absolute URL
-		if strings.HasPrefix(imagePath, "http://") || strings.HasPrefix(imagePath, "https://") {
-			return match
-		}
-
-		// Skip if it's already an absolute path from repo root
-		if strings.HasPrefix(imagePath, "/") {
-			return match
-		}
-
-		// Rewrite relative path to be relative to repo root
-		rewrittenPath := filepath.Join(assignmentPath, imagePath)
-		// Convert to forward slashes for web compatibility (Git/GitHub always uses forward slashes)
-		rewrittenPath = filepath.ToSlash(rewrittenPath)
-
-		return fmt.Sprintf("![%s](%s)", altText, rewrittenPath)
-	})
-}
-
-// createGenericPullRequestBody creates the default generic pull request body
-func (c *Creator) createGenericPullRequestBody(assignmentPath string) string {
-	return fmt.Sprintf(`## Assignment Pull Request
-
-This pull request contains the setup for the assignment located at
-`+"`%s`"+`.
-
-### Changes included:
-- ✅ Created `+constants.ReadmeFileName+` with assignment template
-- ✅ Set up branch structure for assignment submission
-
-### Next steps:
-1. Review the assignment requirements in the `+constants.ReadmeFileName+`
-2. Add any additional assignment materials
-3. Students can fork this repository and work on their submissions
-
----
-
-*This pull request was automatically created by the Assignment Pull*
-*Request Creator action.*
-`, assignmentPath)
+	instructionsProcessor := instructions.New(assignmentPath)
+	return instructionsProcessor.CreatePullRequestBody()
 }
 
 // branchToProcess represents a branch that needs processing
