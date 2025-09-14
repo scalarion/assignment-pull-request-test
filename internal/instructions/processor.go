@@ -83,6 +83,7 @@ func (p *Processor) readAndProcessInstructions(instructionsPath string) (string,
 // rewriteImageLinks rewrites relative image links to reference the assignment path
 func (p *Processor) rewriteImageLinks(content string) string {
 	// Regex to match markdown image syntax: ![alt text](relative/path/to/image)
+	// Note: This handles standard paths; escaped parentheses in paths are extremely rare
 	imageRegex := regexp.MustCompile(`!\[([^\]]*)\]\(([^)]+)\)`)
 
 	return imageRegex.ReplaceAllStringFunc(content, func(match string) string {
@@ -99,7 +100,12 @@ func (p *Processor) rewriteImageLinks(content string) string {
 			return match
 		}
 
-		// Skip if it's already an absolute path from repo root
+		// Check if it's an absolute path (cross-platform)
+		if filepath.IsAbs(imagePath) {
+			return match
+		}
+
+		// Skip if it's already an absolute path from repo root (Unix-style in markdown)
 		if strings.HasPrefix(imagePath, "/") {
 			return match
 		}
