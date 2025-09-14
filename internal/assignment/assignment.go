@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"assignment-pull-request/internal/regex"
 )
 
 // AssignmentInfo represents an assignment with its path and generated branch name
@@ -17,40 +19,30 @@ type AssignmentInfo struct {
 
 // AssignmentProcessor handles assignment discovery and processing
 type AssignmentProcessor struct {
-	rootFolder             string
-	rootPatterns           []*regexp.Regexp
-	assignmentPatterns     []*regexp.Regexp
-	rootRegexStrings       []string
-	assignmentRegexStrings []string
+	rootFolder                    string
+	rootPatternProcessor          *regex.PatternProcessor
+	assignmentPatternProcessor    *regex.PatternProcessor
 }
 
-// NewAssignmentProcessor creates a new AssignmentProcessor
-func NewAssignmentProcessor(rootFolder string, rootRegexPatterns, assignmentRegexPatterns []string) (*AssignmentProcessor, error) {
-	// Parse and compile root patterns
-	rootPatterns, err := CompilePatterns(rootRegexPatterns)
+// NewAssignmentProcessor creates a new AssignmentProcessor with regex pattern processors
+func NewAssignmentProcessor(rootFolder string, rootProcessor, assignmentProcessor *regex.PatternProcessor) (*AssignmentProcessor, error) {
+	// Get compiled patterns to validate assignment patterns have capturing groups
+	assignmentPatterns, err := assignmentProcessor.GetCompiledPatterns()
 	if err != nil {
-		return nil, fmt.Errorf("invalid root regex patterns: %w", err)
-	}
-
-	// Parse and compile assignment patterns
-	assignmentPatterns, err := CompilePatterns(assignmentRegexPatterns)
-	if err != nil {
-		return nil, fmt.Errorf("invalid assignment regex patterns: %w", err)
+		return nil, fmt.Errorf("failed to compile assignment patterns: %w", err)
 	}
 
 	// Validate that assignment patterns have capturing groups
-	for i, pattern := range assignmentPatterns {
+	for _, pattern := range assignmentPatterns {
 		if !hasCapturingGroups(pattern) {
-			return nil, fmt.Errorf("assignment regex '%s' must contain at least one capturing group (e.g., (?P<name>...) or (...)) to extract branch names", assignmentRegexPatterns[i])
+			return nil, fmt.Errorf("assignment regex '%s' must contain at least one capturing group (e.g., (?P<name>...) or (...)) to extract branch names", pattern.String())
 		}
 	}
 
 	return &AssignmentProcessor{
-		rootFolder:             rootFolder,
-		rootPatterns:           rootPatterns,
-		assignmentPatterns:     assignmentPatterns,
-		rootRegexStrings:       rootRegexPatterns,
-		assignmentRegexStrings: assignmentRegexPatterns,
+		rootFolder:                 rootFolder,
+		rootPatternProcessor:       rootProcessor,
+		assignmentPatternProcessor: assignmentProcessor,
 	}, nil
 }
 
@@ -157,7 +149,11 @@ func (ap *AssignmentProcessor) findAssignments() ([]string, error) {
 		}
 
 		// Check if this directory matches any root pattern
-		for _, rootPattern := range ap.rootPatterns {
+		rootPatterns, err := ap.rootPatternProcessor.GetCompiledPatterns()
+		if err != nil {
+			return err
+		}
+		for _, rootPattern := range rootPatterns {
 			if rootPattern.MatchString(path) {
 				// Find assignments in this root directory
 				assignmentsInRoot, err := ap.findAssignmentsInDirectory(path)
@@ -205,7 +201,11 @@ func (ap *AssignmentProcessor) findAssignmentsInDirectory(rootDir string) ([]str
 		}
 
 		// Check if this directory matches any assignment pattern
-		for _, assignmentPattern := range ap.assignmentPatterns {
+		assignmentPatterns, err := ap.assignmentPatternProcessor.GetCompiledPatterns()
+		if err != nil {
+			return nil
+		}
+		for _, assignmentPattern := range assignmentPatterns {
 			if assignmentPattern.MatchString(path) {
 				assignments = append(assignments, path)
 				break // Don't check other patterns for this path
@@ -224,55 +224,22 @@ func (ap *AssignmentProcessor) findAssignmentsInDirectory(rootDir string) ([]str
 
 // GetRootRegexStrings returns the root regex patterns as strings
 func (ap *AssignmentProcessor) GetRootRegexStrings() []string {
-	return ap.rootRegexStrings
+	return ap.rootPatternProcessor.GetPatterns()
 }
 
 // GetAssignmentRegexStrings returns the assignment regex patterns as strings
 func (ap *AssignmentProcessor) GetAssignmentRegexStrings() []string {
-	return ap.assignmentRegexStrings
-}
-
-// ParseRegexPatterns parses a comma-separated string of regex patterns into a slice
-// Supports escaping commas with \, to allow commas within regex patterns
-func ParseRegexPatterns(patterns string) []string {
-	if patterns == "" {
-		return []string{}
-	}
-
-	// Replace escaped commas with a placeholder to preserve them
-	placeholder := "\x00ESCAPED_COMMA\x00"
-	patterns = strings.ReplaceAll(patterns, "\\,", placeholder)
-
-	// Split by unescaped commas and trim whitespace
-	parts := strings.Split(patterns, ",")
-	result := make([]string, 0, len(parts))
-	for _, part := range parts {
-		trimmed := strings.TrimSpace(part)
-		if trimmed != "" {
-			// Restore escaped commas
-			restored := strings.ReplaceAll(trimmed, placeholder, ",")
-			result = append(result, restored)
-		}
-	}
-	return result
-}
-
-// CompilePatterns compiles string patterns into regex patterns
-func CompilePatterns(patterns []string) ([]*regexp.Regexp, error) {
-	compiled := make([]*regexp.Regexp, len(patterns))
-	for i, pattern := range patterns {
-		regex, err := regexp.Compile(pattern)
-		if err != nil {
-			return nil, fmt.Errorf("invalid regex pattern '%s': %w", pattern, err)
-		}
-		compiled[i] = regex
-	}
-	return compiled, nil
+	return ap.assignmentPatternProcessor.GetPatterns()
 }
 
 // extractBranchNameFromPath extracts a branch name from a path using the processor's compiled patterns
 func (ap *AssignmentProcessor) extractBranchNameFromPath(assignmentPath string) (string, bool) {
-	for _, pattern := range ap.assignmentPatterns {
+	assignmentPatterns, err := ap.assignmentPatternProcessor.GetCompiledPatterns()
+	if err != nil {
+		return "", false
+	}
+	
+	for _, pattern := range assignmentPatterns {
 		if pattern == nil {
 			continue
 		}
@@ -331,7 +298,7 @@ func (ap *AssignmentProcessor) extractBranchNameFromPath(assignmentPath string) 
 
 			// Combine parts and sanitize
 			branchName := strings.Join(branchParts, "-")
-			branchName = ap.SanitizeBranchName(branchName)
+			branchName = ap.sanitizeBranchName(branchName)
 
 			return branchName, true
 		}
@@ -340,9 +307,9 @@ func (ap *AssignmentProcessor) extractBranchNameFromPath(assignmentPath string) 
 	return "", false
 }
 
-// SanitizeBranchName sanitizes a branch name to match Creator's original behavior
+// sanitizeBranchName sanitizes a branch name to match Creator's original behavior
 // Only sanitizes spaces and slashes, preserves other special characters
-func (ap *AssignmentProcessor) SanitizeBranchName(name string) string {
+func (ap *AssignmentProcessor) sanitizeBranchName(name string) string {
 	// Remove leading/trailing whitespace
 	branchName := strings.TrimSpace(name)
 

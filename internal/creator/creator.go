@@ -12,6 +12,7 @@ import (
 	"assignment-pull-request/internal/constants"
 	"assignment-pull-request/internal/git"
 	"assignment-pull-request/internal/github"
+	"assignment-pull-request/internal/regex"
 
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -19,36 +20,41 @@ import (
 
 // Config holds configuration for the PR creator
 type Config struct {
-	GitHubToken          string
-	AssignmentsRootRegex []string
-	AssignmentRegex      []string
-	RepositoryName       string
-	DefaultBranch        string
-	DryRun               bool
+	GitHubToken                   string
+	RootPatternProcessor          *regex.PatternProcessor
+	AssignmentPatternProcessor    *regex.PatternProcessor
+	RepositoryName                string
+	DefaultBranch                 string
+	DryRun                        bool
 }
 
 // NewConfig creates a new Config with the given parameters
 func NewConfig(gitHubToken, repositoryName, defaultBranch string, assignmentsRootRegex, assignmentRegex []string, dryRun bool) *Config {
 	return &Config{
-		GitHubToken:          gitHubToken,
-		RepositoryName:       repositoryName,
-		DefaultBranch:        defaultBranch,
-		AssignmentsRootRegex: assignmentsRootRegex,
-		AssignmentRegex:      assignmentRegex,
-		DryRun:               dryRun,
+		GitHubToken:                   gitHubToken,
+		RepositoryName:                repositoryName,
+		DefaultBranch:                 defaultBranch,
+		RootPatternProcessor:          regex.NewPatternProcessorWithPatterns(assignmentsRootRegex),
+		AssignmentPatternProcessor:    regex.NewPatternProcessorWithPatterns(assignmentRegex),
+		DryRun:                        dryRun,
 	}
 }
 
 // NewConfigFromEnv creates a new Config from environment variables
 func NewConfigFromEnv() *Config {
-	return &Config{
-		GitHubToken:          os.Getenv(constants.EnvGitHubToken),
-		RepositoryName:       os.Getenv(constants.EnvGitHubRepository),
-		AssignmentsRootRegex: assignment.ParseRegexPatterns(getEnvWithDefault(constants.EnvAssignmentsRootRegex, constants.DefaultAssignmentsRootRegex)),
-		AssignmentRegex:      assignment.ParseRegexPatterns(getEnvWithDefault(constants.EnvAssignmentRegex, constants.DefaultAssignmentRegex)),
-		DefaultBranch:        getEnvWithDefault(constants.EnvDefaultBranch, constants.DefaultBranch),
-		DryRun:               isDryRun(getEnvWithDefault(constants.EnvDryRun, constants.DefaultDryRun)),
-	}
+	// Parse environment variables into string arrays
+	rootPatterns := regex.ParseCommaSeparated(getEnvWithDefault(constants.EnvAssignmentsRootRegex, constants.DefaultAssignmentsRootRegex))
+	assignmentPatterns := regex.ParseCommaSeparated(getEnvWithDefault(constants.EnvAssignmentRegex, constants.DefaultAssignmentRegex))
+	
+	// Use NewConfig to create the config with proper validation and initialization
+	return NewConfig(
+		os.Getenv(constants.EnvGitHubToken),
+		os.Getenv(constants.EnvGitHubRepository),
+		getEnvWithDefault(constants.EnvDefaultBranch, constants.DefaultBranch),
+		rootPatterns,
+		assignmentPatterns,
+		isDryRun(getEnvWithDefault(constants.EnvDryRun, constants.DefaultDryRun)),
+	)
 }
 
 // Creator is the main Assignment PR Creator
@@ -71,8 +77,8 @@ func NewWithConfig(config *Config) (*Creator, error) {
 		return nil, fmt.Errorf("GITHUB_REPOSITORY environment variable is required")
 	}
 
-	// Create assignment processor
-	assignmentProcessor, err := assignment.NewAssignmentProcessor("", config.AssignmentsRootRegex, config.AssignmentRegex)
+	// Create assignment processor with pattern processors from config
+	assignmentProc, err := assignment.NewAssignmentProcessor("", config.RootPatternProcessor, config.AssignmentPatternProcessor)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create assignment processor: %w", err)
 	}
@@ -81,10 +87,9 @@ func NewWithConfig(config *Config) (*Creator, error) {
 		config:              config,
 		gitOps:              git.NewOperations(config.DryRun),
 		githubClient:        github.NewClient(config.GitHubToken, config.RepositoryName, config.DryRun),
-		assignmentProcessor: assignmentProcessor,
+		assignmentProcessor: assignmentProc,
 		createdBranches:     make([]string, 0),
 		createdPullRequests: make([]string, 0),
-		pendingPushes:       make([]string, 0),
 	}
 
 	return creator, nil
@@ -541,8 +546,8 @@ func (c *Creator) Run() error {
 		fmt.Println("🔄 LIVE MODE: Using local git operations with atomic remote push")
 	}
 	fmt.Printf("Repository: %s\n", c.config.RepositoryName)
-	fmt.Printf("Assignments root regex: %s\n", c.config.AssignmentsRootRegex)
-	fmt.Printf("Assignment regex: %s\n", c.config.AssignmentRegex)
+	fmt.Printf("Assignments root regex: %s\n", c.config.RootPatternProcessor.GetPatterns())
+	fmt.Printf("Assignment regex: %s\n", c.config.AssignmentPatternProcessor.GetPatterns())
 	fmt.Printf("Default branch: %s\n", c.config.DefaultBranch)
 	fmt.Printf("Dry run mode: %t\n", c.config.DryRun)
 

@@ -10,6 +10,7 @@ import (
 
 	"assignment-pull-request/internal/assignment"
 	"assignment-pull-request/internal/constants"
+	"assignment-pull-request/internal/regex"
 	"assignment-pull-request/internal/workflow"
 )
 
@@ -79,8 +80,12 @@ func processAssignmentBranch(currentBranch string, patterns *workflow.WorkflowPa
 		assignmentPatterns = []string{constants.DefaultAssignmentRegex}
 	}
 
+		// Compile regex patterns using the regex processor
+	rootProcessor := regex.NewPatternProcessorWithPatterns(rootPatterns)
+	assignmentProcessor := regex.NewPatternProcessorWithPatterns(assignmentPatterns)
+
 	// Find all assignment folders using assignment package
-	processor, err := assignment.NewAssignmentProcessor("", rootPatterns, assignmentPatterns)
+	processor, err := assignment.NewAssignmentProcessor("", rootProcessor, assignmentProcessor)
 	if err != nil {
 		return fmt.Errorf("failed to create assignment processor: %w", err)
 	}

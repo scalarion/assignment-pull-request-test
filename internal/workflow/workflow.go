@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"assignment-pull-request/internal/assignment"
 	"assignment-pull-request/internal/constants"
+	"assignment-pull-request/internal/regex"
 
 	"gopkg.in/yaml.v3"
 )
@@ -83,10 +83,9 @@ func ParseWorkflowFile(filePath string) (*WorkflowPatterns, error) {
 		return nil, fmt.Errorf("error parsing workflow file %s: %w", filePath, err)
 	}
 
-	patterns := &WorkflowPatterns{
-		RootPatterns:       []string{},
-		AssignmentPatterns: []string{},
-	}
+	// Use regex processor for pattern parsing (deduplication is automatic)
+	rootProcessor := regex.NewPatternProcessor()
+	assignmentProcessor := regex.NewPatternProcessor()
 
 	// Look for jobs that use the assignment action
 	for _, job := range workflow.Jobs {
@@ -95,25 +94,24 @@ func ParseWorkflowFile(filePath string) (*WorkflowPatterns, error) {
 				// Extract root patterns
 				if rootPatterns, ok := with["assignments-root-regex"]; ok {
 					if rootStr, ok := rootPatterns.(string); ok {
-						// Parse comma-separated patterns
-						parsedPatterns := assignment.ParseRegexPatterns(rootStr)
-						patterns.RootPatterns = append(patterns.RootPatterns, parsedPatterns...)
+						rootProcessor.AddCommaSeparatedPatterns(rootStr)
 					}
 				}
 
 				// Extract assignment patterns
 				if assignmentPatterns, ok := with["assignment-regex"]; ok {
 					if assignmentStr, ok := assignmentPatterns.(string); ok {
-						// Parse comma-separated patterns
-						parsedPatterns := assignment.ParseRegexPatterns(assignmentStr)
-						patterns.AssignmentPatterns = append(patterns.AssignmentPatterns, parsedPatterns...)
+						assignmentProcessor.AddCommaSeparatedPatterns(assignmentStr)
 					}
 				}
 			}
 		}
 	}
 
-	return patterns, nil
+	return &WorkflowPatterns{
+		RootPatterns:       rootProcessor.GetPatterns(),
+		AssignmentPatterns: assignmentProcessor.GetPatterns(),
+	}, nil
 }
 
 // ParseAllWorkflows finds and parses all workflow files, returning combined patterns
@@ -123,10 +121,9 @@ func ParseAllWorkflows() (*WorkflowPatterns, error) {
 		return nil, fmt.Errorf("error finding workflow files: %w", err)
 	}
 
-	combined := &WorkflowPatterns{
-		RootPatterns:       []string{},
-		AssignmentPatterns: []string{},
-	}
+	// Use regex processors for combined pattern handling (deduplication is automatic)
+	rootProcessor := regex.NewPatternProcessor()
+	assignmentProcessor := regex.NewPatternProcessor()
 
 	for _, file := range workflowFiles {
 		patterns, err := ParseWorkflowFile(file)
@@ -135,15 +132,14 @@ func ParseAllWorkflows() (*WorkflowPatterns, error) {
 			continue
 		}
 
-		combined.RootPatterns = append(combined.RootPatterns, patterns.RootPatterns...)
-		combined.AssignmentPatterns = append(combined.AssignmentPatterns, patterns.AssignmentPatterns...)
+		rootProcessor.AddPatterns(patterns.RootPatterns)
+		assignmentProcessor.AddPatterns(patterns.AssignmentPatterns)
 	}
 
-	// Remove duplicates
-	combined.RootPatterns = removeDuplicateStrings(combined.RootPatterns)
-	combined.AssignmentPatterns = removeDuplicateStrings(combined.AssignmentPatterns)
-
-	return combined, nil
+	return &WorkflowPatterns{
+		RootPatterns:       rootProcessor.GetPatterns(),
+		AssignmentPatterns: assignmentProcessor.GetPatterns(),
+	}, nil
 }
 
 // isAssignmentAction checks if a job uses the assignment pull request action
@@ -160,19 +156,4 @@ func isAssignmentAction(uses string) bool {
 	// Check for GitHub repository references that might be this action
 	// This is a heuristic - in practice, you might want to be more specific
 	return strings.Contains(uses, constants.ActionName)
-}
-
-// removeDuplicateStrings removes duplicate strings from a slice
-func removeDuplicateStrings(slice []string) []string {
-	seen := make(map[string]bool)
-	var result []string
-
-	for _, item := range slice {
-		if item != "" && !seen[item] {
-			seen[item] = true
-			result = append(result, item)
-		}
-	}
-
-	return result
 }
