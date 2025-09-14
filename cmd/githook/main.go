@@ -29,7 +29,7 @@ func main() {
 
 	// Create sparse checkout processor and configure sparse-checkout
 	checkoutProcessor := checkout.New(repositoryRoot)
-	err = checkoutProcessor.Checkout()
+	err = checkoutProcessor.SparseCheckout()
 	if err != nil {
 		log.Printf("Failed to configure sparse checkout: %v", err)
 	}
