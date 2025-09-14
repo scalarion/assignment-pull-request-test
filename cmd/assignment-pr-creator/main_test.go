@@ -44,7 +44,7 @@ func TestMainIntegration(t *testing.T) {
 				"GITHUB_TOKEN":           "test-token",
 				"GITHUB_REPOSITORY":      "test/repo",
 				"ASSIGNMENTS_ROOT_REGEX": "^test/fixtures$",
-				"ASSIGNMENT_REGEX":       `^test/fixtures/(?P<type>assignments|homework|labs|projects)/(?P<name>[^/]+)$`,
+				"ASSIGNMENT_REGEX":       `^(?P<type>assignments|homework|labs|projects)/(?P<name>[^/]+)$`,
 				"DEFAULT_BRANCH":         "main",
 				"DRY_RUN":                "true",
 			},
@@ -65,7 +65,7 @@ func TestMainIntegration(t *testing.T) {
 				"GITHUB_TOKEN":           "test-token",
 				"GITHUB_REPOSITORY":      "test/repo",
 				"ASSIGNMENTS_ROOT_REGEX": "^test/fixtures$",
-				"ASSIGNMENT_REGEX":       `^test/fixtures/courses/(?P<course>[^/]+)/(?P<week>[^/]+)/(?P<assignment>[^/]+)$`,
+				"ASSIGNMENT_REGEX":       `^courses/(?P<course>[^/]+)/(?P<week>[^/]+)/(?P<assignment>[^/]+)$`,
 				"DEFAULT_BRANCH":         "main",
 				"DRY_RUN":                "true",
 			},
@@ -184,25 +184,25 @@ func TestAssignmentDiscovery(t *testing.T) {
 		{
 			name:                 "basic assignments only",
 			assignmentsRootRegex: "^test/fixtures$",
-			assignmentRegex:      `^test/fixtures/assignments/(?P<name>[^/]+)$`,
+			assignmentRegex:      `^assignments/(?P<name>[^/]+)$`,
 			expectedMatches:      2, // assignment-1, assignment-2
 		},
 		{
 			name:                 "homework and labs",
 			assignmentsRootRegex: "^test/fixtures$",
-			assignmentRegex:      `^test/fixtures/(?P<type>homework|labs)/(?P<name>[^/]+)$`,
+			assignmentRegex:      `^(?P<type>homework|labs)/(?P<name>[^/]+)$`,
 			expectedMatches:      3, // hw-1, hw-2, lab-1
 		},
 		{
 			name:                 "all assignment types",
 			assignmentsRootRegex: "^test/fixtures$",
-			assignmentRegex:      `^test/fixtures/(?P<type>assignments|homework|labs|projects)/(?P<name>[^/]+)$`,
+			assignmentRegex:      `^(?P<type>assignments|homework|labs|projects)/(?P<name>[^/]+)$`,
 			expectedMatches:      6, // All basic assignments
 		},
 		{
 			name:                 "course structure",
 			assignmentsRootRegex: "^test/fixtures$",
-			assignmentRegex:      `^test/fixtures/courses/(?P<course>[^/]+)/(?P<week>[^/]+)/(?P<assignment>[^/]+)$`,
+			assignmentRegex:      `^courses/(?P<course>[^/]+)/(?P<week>[^/]+)/(?P<assignment>[^/]+)$`,
 			expectedMatches:      2, // CS101 and CS102 assignments
 		},
 	}
@@ -405,19 +405,19 @@ func TestComplexWorkflow(t *testing.T) {
 		{
 			name:                 "bootcamp assignments",
 			assignmentsRootRegex: "^bootcamp$",
-			assignmentRegex:      `^bootcamp/(?P<year>[^/]+)/(?P<module>[^/]+)/(?P<week>[^/]+)/(?P<assignment>[^/]+)$`,
+			assignmentRegex:      `^(?P<year>[^/]+)/(?P<module>[^/]+)/(?P<week>[^/]+)/(?P<assignment>[^/]+)$`,
 			description:          "Match bootcamp structure with year/module/week/assignment",
 		},
 		{
 			name:                 "course assignments",
 			assignmentsRootRegex: "^courses$",
-			assignmentRegex:      `^courses/(?P<course>[^/]+)/(?P<semester>[^/]+)/(?P<module>[^/]+)/(?P<assignment>[^/]+)$`,
+			assignmentRegex:      `^(?P<course>[^/]+)/(?P<semester>[^/]+)/(?P<module>[^/]+)/(?P<assignment>[^/]+)$`,
 			description:          "Match course structure with semester modules",
 		},
 		{
 			name:                 "advanced course assignments",
 			assignmentsRootRegex: "^courses$",
-			assignmentRegex:      `^courses/(?P<course>[^/]+)/(?P<topic>[^/]+)/(?P<week>[^/]+)/(?P<assignment>[^/]+)$`,
+			assignmentRegex:      `^(?P<course>[^/]+)/(?P<topic>[^/]+)/(?P<week>[^/]+)/(?P<assignment>[^/]+)$`,
 			description:          "Match advanced course structure",
 		},
 	}
@@ -528,9 +528,11 @@ func TestBranchNameConflictValidation(t *testing.T) {
 
 	// Create assignments that would generate conflicting branch names
 	conflictingAssignments := []string{
-		"assignment-1",        // Would generate branch: assignment-1
-		"CS101/assignment-1",  // Would also generate branch: assignment-1 (conflict!)
-		"unique/assignment-2", // Would generate branch: assignment-2 (unique)
+		"test/fixtures/assigments/assignment-1",        // Would generate branch: assignment-1
+		"test/fixtures/assigments/unique/assignment-2", // Would generate branch: assignment-2 (unique)
+		"test/fixtures/lab/week-01/assignment-1",       // Would also generate branch: assignment-1 (conflict!)
+		"test/fixtures/lab/week-02/assignment-1",       // Would also generate branch: assignment-1 (conflict!)
+		"test/fixtures/lab/week-03/assignment-1",       // Would also generate branch: assignment-1 (conflict!)
 	}
 
 	for _, assignment := range conflictingAssignments {
@@ -544,8 +546,8 @@ func TestBranchNameConflictValidation(t *testing.T) {
 	envVars := map[string]string{
 		"GITHUB_TOKEN":           "test-token",
 		"GITHUB_REPOSITORY":      "test/repo",
-		"ASSIGNMENTS_ROOT_REGEX": ".",                                                                     // Match current directory
-		"ASSIGNMENT_REGEX":       "^(?P<branch>assignment-\\d+)$,^[^/]+/(?P<assignment>assignment-\\d+)$", // Two patterns that can conflict
+		"ASSIGNMENTS_ROOT_REGEX": "^test/fixtures/(assigments|lab)$",                                       // Match current directory exactly
+		"ASSIGNMENT_REGEX":       "^(?P<branch>assignment-\\d+)$, ^[^/]+/(?P<assignment>assignment-\\d+)$", // Two patterns that can conflict
 		"DEFAULT_BRANCH":         "main",
 		"DRY_RUN":                "true",
 	}
