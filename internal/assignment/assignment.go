@@ -19,13 +19,13 @@ type Info struct {
 
 // Processor handles assignment discovery and processing
 type Processor struct {
-	rootFolder        string
+	repositoryRoot    string
 	rootPattern       *regex.Processor
 	assignmentPattern *regex.Processor
 }
 
 // NewProcessor creates a new Processor with regex pattern processors
-func NewProcessor(rootFolder string, rootProcessor, assignmentProcessor *regex.Processor) (*Processor, error) {
+func NewProcessor(repositoryRoot string, rootProcessor, assignmentProcessor *regex.Processor) (*Processor, error) {
 	// Get compiled patterns to validate assignment patterns have capturing groups
 	assignmentPatterns, err := assignmentProcessor.Compiled()
 	if err != nil {
@@ -40,7 +40,7 @@ func NewProcessor(rootFolder string, rootProcessor, assignmentProcessor *regex.P
 	}
 
 	return &Processor{
-		rootFolder:        rootFolder,
+		repositoryRoot:    repositoryRoot,
 		rootPattern:       rootProcessor,
 		assignmentPattern: assignmentProcessor,
 	}, nil
@@ -118,7 +118,7 @@ func (ap *Processor) findAssignments() ([]string, error) {
 	var assignments []string
 
 	// Determine the root directory to walk
-	rootDir := ap.rootFolder
+	rootDir := ap.repositoryRoot
 	if rootDir == "" {
 		rootDir = "."
 	}

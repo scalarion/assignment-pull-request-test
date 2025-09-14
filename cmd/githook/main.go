@@ -47,23 +47,23 @@ func processAssignmentBranch(repositoryRoot string) error {
 	}
 
 	// Get processors directly
-	rootProcessor := workflowProcessor.RootPattern()
-	assignmentProcessor := workflowProcessor.AssignmentPattern()
+	rootPattern := workflowProcessor.RootPattern()
+	assignmentPattern := workflowProcessor.AssignmentPattern()
 
 	// Skip operations if no patterns found
-	if len(rootProcessor.Patterns()) == 0 || len(assignmentProcessor.Patterns()) == 0 {
+	if len(rootPattern.Patterns()) == 0 || len(assignmentPattern.Patterns()) == 0 {
 		fmt.Println("No assignment patterns found in workflow files, skipping sparse-checkout configuration")
 		return nil
 	}
 
 	// Find all assignment folders using assignment package
-	assignmentProc, err := assignment.NewProcessor(repositoryRoot, rootProcessor, assignmentProcessor)
+	assignmentProcessor, err := assignment.NewProcessor(repositoryRoot, rootPattern, assignmentPattern)
 	if err != nil {
 		return fmt.Errorf("failed to create assignment processor: %w", err)
 	}
 
 	// Create checkout processor and configure sparse-checkout
-	checkoutProcessor := sparse.New(repositoryRoot, assignmentProc)
+	checkoutProcessor := sparse.New(repositoryRoot, assignmentProcessor)
 
 	// Configure sparse-checkout for the current branch
 	err = checkoutProcessor.Checkout()
