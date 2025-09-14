@@ -1,13 +1,10 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"os"
 
-	"assignment-pull-request/internal/assignment"
-	"assignment-pull-request/internal/sparse"
-	"assignment-pull-request/internal/workflow"
+	"assignment-pull-request/internal/checkout"
 )
 
 func main() {
@@ -26,50 +23,14 @@ func main() {
 	// Get repository root (current working directory)
 	repositoryRoot, err := os.Getwd()
 	if err != nil {
+		log.Printf("Failed to get current working directory: %v", err)
 		return
 	}
 
-	// Process the configuration
-	err = processAssignmentBranch(repositoryRoot)
-	if err != nil {
-		log.Printf("Error processing assignments: %v", err)
-	}
-}
-
-// processAssignmentBranch handles the assignment branch logic
-func processAssignmentBranch(repositoryRoot string) error {
-	// Parse workflow files to find assignment configurations
-	workflowProcessor := workflow.New()
-	err := workflowProcessor.ParseAllFiles()
-	if err != nil {
-		log.Printf("Failed to parse workflow files: %v", err)
-		os.Exit(0)
-	}
-
-	// Get processors directly
-	rootPattern := workflowProcessor.RootPattern()
-	assignmentPattern := workflowProcessor.AssignmentPattern()
-
-	// Skip operations if no patterns found
-	if len(rootPattern.Patterns()) == 0 || len(assignmentPattern.Patterns()) == 0 {
-		fmt.Println("No assignment patterns found in workflow files, skipping sparse-checkout configuration")
-		return nil
-	}
-
-	// Find all assignment folders using assignment package
-	assignmentProcessor, err := assignment.NewProcessor(repositoryRoot, rootPattern, assignmentPattern)
-	if err != nil {
-		return fmt.Errorf("failed to create assignment processor: %w", err)
-	}
-
-	// Create checkout processor and configure sparse-checkout
-	checkoutProcessor := sparse.New(repositoryRoot, assignmentProcessor)
-
-	// Configure sparse-checkout for the current branch
+	// Create sparse checkout processor and configure sparse-checkout
+	checkoutProcessor := checkout.New(repositoryRoot)
 	err = checkoutProcessor.Checkout()
 	if err != nil {
-		return fmt.Errorf("failed to configure sparse checkout: %w", err)
+		log.Printf("Failed to configure sparse checkout: %v", err)
 	}
-
-	return nil
 }

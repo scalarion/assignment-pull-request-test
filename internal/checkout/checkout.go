@@ -1,4 +1,4 @@
-package sparse
+package checkout
 
 import (
 	"fmt"
@@ -8,36 +8,34 @@ import (
 
 	"assignment-pull-request/internal/assignment"
 	"assignment-pull-request/internal/git"
+	"assignment-pull-request/internal/workflow"
 )
 
 // Processor handles Git sparse-checkout configuration based on assignment patterns
 type Processor struct {
-	repositoryRoot      string
-	assignmentProcessor *assignment.Processor
-	gitOps              *git.Operations
+	repositoryRoot string
+	gitOps         *git.Operations
 }
 
 // New creates a new sparse checkout processor
-func New(repositoryRoot string, assignmentProcessor *assignment.Processor) *Processor {
+func New(repositoryRoot string) *Processor {
 	return &Processor{
-		repositoryRoot:      repositoryRoot,
-		assignmentProcessor: assignmentProcessor,
-		gitOps:              git.NewOperations(false), // Not in dry-run mode
+		repositoryRoot: repositoryRoot,
+		gitOps:         git.NewOperations(false), // Not in dry-run mode
 	}
 }
 
 // NewWithGitOps creates a new sparse checkout processor with custom git operations
-func NewWithGitOps(repositoryRoot string, assignmentProcessor *assignment.Processor, gitOps *git.Operations) *Processor {
+func NewWithGitOps(repositoryRoot string, gitOps *git.Operations) *Processor {
 	return &Processor{
-		repositoryRoot:      repositoryRoot,
-		assignmentProcessor: assignmentProcessor,
-		gitOps:              gitOps,
+		repositoryRoot: repositoryRoot,
+		gitOps:         gitOps,
 	}
 }
 
 // Checkout configures Git sparse-checkout for assignments matching the current branch
-// Automatically discovers matching assignments and sets up sparse-checkout to include
-// all non-assignment root folders plus only the assignment folders that match the current branch
+// Automatically discovers workflow patterns, finds matching assignments, and sets up sparse-checkout
+// to include all non-assignment root folders plus only the assignment folders that match the current branch
 func (p *Processor) Checkout() error {
 	// Disable sparse-checkout at the very beginning to reset state
 	if err := p.gitOps.DisableSparseCheckout(); err != nil {
@@ -45,8 +43,32 @@ func (p *Processor) Checkout() error {
 		fmt.Printf("Warning: could not disable sparse-checkout (may not be enabled): %v\n", err)
 	}
 
+	// Parse workflow files to find assignment configurations
+	workflowProcessor := workflow.New()
+	err := workflowProcessor.ParseAllFiles()
+	if err != nil {
+		fmt.Printf("Failed to parse workflow files: %v\n", err)
+		return nil // Don't fail, just skip sparse-checkout configuration
+	}
+
+	// Get pattern processors from workflow
+	rootPattern := workflowProcessor.RootPattern()
+	assignmentPattern := workflowProcessor.AssignmentPattern()
+
+	// Skip operations if no patterns found
+	if len(rootPattern.Patterns()) == 0 || len(assignmentPattern.Patterns()) == 0 {
+		fmt.Println("No assignment patterns found in workflow files, skipping sparse-checkout configuration")
+		return nil
+	}
+
+	// Create assignment processor
+	assignmentProcessor, err := assignment.NewProcessor(p.repositoryRoot, rootPattern, assignmentPattern)
+	if err != nil {
+		return fmt.Errorf("failed to create assignment processor: %w", err)
+	}
+
 	// Get matching assignments for current branch
-	assignmentPaths, err := p.getMatchingAssignments()
+	assignmentPaths, err := p.getMatchingAssignments(assignmentProcessor)
 	if err != nil {
 		return fmt.Errorf("failed to get matching assignments: %w", err)
 	}
@@ -68,7 +90,7 @@ func (p *Processor) Checkout() error {
 	}
 
 	// Get all unique assignment root folders by extracting the first directory component from assignment paths
-	allAssignments, err := p.assignmentProcessor.ProcessAssignments()
+	allAssignments, err := assignmentProcessor.ProcessAssignments()
 	if err != nil {
 		return fmt.Errorf("failed to process assignments: %w", err)
 	}
@@ -127,14 +149,14 @@ func (p *Processor) getCurrentBranch() (string, error) {
 }
 
 // getMatchingAssignments returns the assignment paths that match the current branch
-func (p *Processor) getMatchingAssignments() ([]string, error) {
+func (p *Processor) getMatchingAssignments(assignmentProcessor *assignment.Processor) ([]string, error) {
 	// Get current branch
 	currentBranch, err := p.getCurrentBranch()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get current branch: %w", err)
 	}
 
-	allAssignments, err := p.assignmentProcessor.ProcessAssignments()
+	allAssignments, err := assignmentProcessor.ProcessAssignments()
 	if err != nil {
 		return nil, fmt.Errorf("failed to find assignments: %w", err)
 	}
