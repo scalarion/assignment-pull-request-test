@@ -71,3 +71,12 @@ const (
 	// MarkdownExtension is the Markdown file extension
 	MarkdownExtension = ".md"
 )
+
+// Workflow file YAML keys
+const (
+	// WorkflowAssignmentsRootRegexKey is the YAML key for assignments root regex patterns
+	WorkflowAssignmentsRootRegexKey = "assignments-root-regex"
+
+	// WorkflowAssignmentRegexKey is the YAML key for assignment regex patterns
+	WorkflowAssignmentRegexKey = "assignment-regex"
+)

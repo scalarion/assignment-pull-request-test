@@ -92,14 +92,14 @@ func ParseWorkflowFile(filePath string) (*WorkflowPatterns, error) {
 		if isAssignmentAction(job.Uses) {
 			if with := job.With; with != nil {
 				// Extract root patterns
-				if rootPatterns, ok := with["assignments-root-regex"]; ok {
+				if rootPatterns, ok := with[constants.WorkflowAssignmentsRootRegexKey]; ok {
 					if rootStr, ok := rootPatterns.(string); ok {
 						rootProcessor.AddCommaSeparated(rootStr)
 					}
 				}
 
 				// Extract assignment patterns
-				if assignmentPatterns, ok := with["assignment-regex"]; ok {
+				if assignmentPatterns, ok := with[constants.WorkflowAssignmentRegexKey]; ok {
 					if assignmentStr, ok := assignmentPatterns.(string); ok {
 						assignmentProcessor.AddCommaSeparated(assignmentStr)
 					}
