@@ -20,23 +20,23 @@ import (
 
 // Config holds configuration for the PR creator
 type Config struct {
-	GitHubToken                   string
-	RootPatternProcessor          *regex.PatternProcessor
-	AssignmentPatternProcessor    *regex.PatternProcessor
-	RepositoryName                string
-	DefaultBranch                 string
-	DryRun                        bool
+	gitHubToken                   string
+	rootPatternProcessor          *regex.PatternProcessor
+	assignmentPatternProcessor    *regex.PatternProcessor
+	repositoryName                string
+	defaultBranch                 string
+	dryRun                        bool
 }
 
 // NewConfig creates a new Config with the given parameters
 func NewConfig(gitHubToken, repositoryName, defaultBranch string, assignmentsRootRegex, assignmentRegex []string, dryRun bool) *Config {
 	return &Config{
-		GitHubToken:                   gitHubToken,
-		RepositoryName:                repositoryName,
-		DefaultBranch:                 defaultBranch,
-		RootPatternProcessor:          regex.NewPatternProcessorWithPatterns(assignmentsRootRegex),
-		AssignmentPatternProcessor:    regex.NewPatternProcessorWithPatterns(assignmentRegex),
-		DryRun:                        dryRun,
+		gitHubToken:                   gitHubToken,
+		repositoryName:                repositoryName,
+		defaultBranch:                 defaultBranch,
+		rootPatternProcessor:          regex.NewPatternProcessorWithPatterns(assignmentsRootRegex),
+		assignmentPatternProcessor:    regex.NewPatternProcessorWithPatterns(assignmentRegex),
+		dryRun:                        dryRun,
 	}
 }
 
@@ -70,23 +70,23 @@ type Creator struct {
 
 // NewWithConfig creates a new Assignment PR Creator with the given configuration
 func NewWithConfig(config *Config) (*Creator, error) {
-	if config.GitHubToken == "" {
+	if config.gitHubToken == "" {
 		return nil, fmt.Errorf("GITHUB_TOKEN environment variable is required")
 	}
-	if config.RepositoryName == "" {
+	if config.repositoryName == "" {
 		return nil, fmt.Errorf("GITHUB_REPOSITORY environment variable is required")
 	}
 
 	// Create assignment processor with pattern processors from config
-	assignmentProc, err := assignment.NewAssignmentProcessor("", config.RootPatternProcessor, config.AssignmentPatternProcessor)
+	assignmentProc, err := assignment.NewAssignmentProcessor("", config.rootPatternProcessor, config.assignmentPatternProcessor)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create assignment processor: %w", err)
 	}
 
 	creator := &Creator{
 		config:              config,
-		gitOps:              git.NewOperations(config.DryRun),
-		githubClient:        github.NewClient(config.GitHubToken, config.RepositoryName, config.DryRun),
+		gitOps:              git.NewOperations(config.dryRun),
+		githubClient:        github.NewClient(config.gitHubToken, config.repositoryName, config.dryRun),
 		assignmentProcessor: assignmentProc,
 		createdBranches:     make([]string, 0),
 		createdPullRequests: make([]string, 0),
@@ -104,7 +104,7 @@ func NewFromEnv() (*Creator, error) {
 // createBranch creates a new branch from the default branch locally
 func (c *Creator) createBranch(branchName string) error {
 	// First, ensure we're on the default branch
-	if err := c.gitOps.SwitchToBranch(c.config.DefaultBranch); err != nil {
+	if err := c.gitOps.SwitchToBranch(c.config.defaultBranch); err != nil {
 		return err
 	}
 
@@ -126,7 +126,7 @@ func (c *Creator) createReadme(assignmentPath string) error {
 	assignmentTitle := caser.String(strings.ReplaceAll(assignmentPath, string(filepath.Separator), " - "))
 
 	// Create assignment directory if it doesn't exist
-	if !c.config.DryRun {
+	if !c.config.dryRun {
 		if err := os.MkdirAll(assignmentPath, 0755); err != nil {
 			return fmt.Errorf("failed to create directory %s: %w", assignmentPath, err)
 		}
@@ -156,7 +156,7 @@ func (c *Creator) createReadme(assignmentPath string) error {
 
 		readmeContent = strings.TrimSpace(existingContent) + augmentationComment
 
-		if !c.config.DryRun {
+		if !c.config.dryRun {
 			if err := os.WriteFile(readmePath, []byte(readmeContent), 0644); err != nil {
 				return fmt.Errorf("failed to write augmented README: %w", err)
 			}
@@ -186,7 +186,7 @@ Please add your submission guidelines here.
 `, assignmentTitle, assignmentPath)
 
 		// Write new README
-		if !c.config.DryRun {
+		if !c.config.dryRun {
 			if err := os.WriteFile(readmePath, []byte(readmeContent), 0644); err != nil {
 				return fmt.Errorf("failed to write new README: %w", err)
 			}
@@ -203,7 +203,7 @@ Please add your submission guidelines here.
 	}
 
 	commitMessage := fmt.Sprintf("Add README for assignment %s", assignmentPath)
-	if _, err := os.Stat(readmePath); err == nil && !c.config.DryRun {
+	if _, err := os.Stat(readmePath); err == nil && !c.config.dryRun {
 		commitMessage = fmt.Sprintf("Augment README for assignment %s", assignmentPath)
 	}
 
@@ -221,7 +221,7 @@ func (c *Creator) createPullRequest(assignmentPath, branchName string) error {
 		return fmt.Errorf("error creating pull request body for '%s': %w", assignmentPath, err)
 	}
 
-	prNumber, err := c.githubClient.CreatePullRequest(title, body, branchName, c.config.DefaultBranch)
+	prNumber, err := c.githubClient.CreatePullRequest(title, body, branchName, c.config.defaultBranch)
 	if err != nil {
 		return fmt.Errorf("error creating pull request for '%s': %w", assignmentPath, err)
 	}
@@ -371,13 +371,13 @@ func (c *Creator) processAssignments() error {
 		return err
 	}
 
-	if err := c.gitOps.GetRemoteBranches(c.config.DefaultBranch); err != nil {
+	if err := c.gitOps.GetRemoteBranches(c.config.defaultBranch); err != nil {
 		fmt.Println("❌ Failed to setup remote tracking branches")
 		return err
 	}
 
 	// Return to default branch
-	if err := c.gitOps.SwitchToBranch(c.config.DefaultBranch); err != nil {
+	if err := c.gitOps.SwitchToBranch(c.config.defaultBranch); err != nil {
 		return err
 	}
 
@@ -540,16 +540,16 @@ func (c *Creator) setOutputs() error {
 // Run is the main execution method using local git with atomic remote operations
 func (c *Creator) Run() error {
 	fmt.Println("Starting Assignment Pull Request Creator")
-	if c.config.DryRun {
+	if c.config.dryRun {
 		fmt.Println("🏃 DRY RUN MODE: Simulating local git operations without making actual changes")
 	} else {
 		fmt.Println("🔄 LIVE MODE: Using local git operations with atomic remote push")
 	}
-	fmt.Printf("Repository: %s\n", c.config.RepositoryName)
-	fmt.Printf("Assignments root regex: %s\n", c.config.RootPatternProcessor.GetPatterns())
-	fmt.Printf("Assignment regex: %s\n", c.config.AssignmentPatternProcessor.GetPatterns())
-	fmt.Printf("Default branch: %s\n", c.config.DefaultBranch)
-	fmt.Printf("Dry run mode: %t\n", c.config.DryRun)
+	fmt.Printf("Repository: %s\n", c.config.repositoryName)
+	fmt.Printf("Assignments root regex: %s\n", c.config.rootPatternProcessor.GetPatterns())
+	fmt.Printf("Assignment regex: %s\n", c.config.assignmentPatternProcessor.GetPatterns())
+	fmt.Printf("Default branch: %s\n", c.config.defaultBranch)
+	fmt.Printf("Dry run mode: %t\n", c.config.dryRun)
 
 	if err := c.processAssignments(); err != nil {
 		return err
@@ -559,7 +559,7 @@ func (c *Creator) Run() error {
 		return err
 	}
 
-	if c.config.DryRun {
+	if c.config.dryRun {
 		fmt.Println("\n🏃 DRY RUN MODE: Assignment Pull Request Creator simulation completed")
 		fmt.Println("In real mode, all local changes would be pushed atomically to remote")
 	} else {
