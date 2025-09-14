@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"assignment-pull-request/internal/assignment"
-	"assignment-pull-request/internal/checkout"
+	"assignment-pull-request/internal/sparse"
 	"assignment-pull-request/internal/workflow"
 )
 
@@ -63,10 +63,10 @@ func processAssignmentBranch(repositoryRoot string) error {
 	}
 
 	// Create checkout processor and configure sparse-checkout
-	checkoutProcessor := checkout.New(repositoryRoot, assignmentProc)
+	checkoutProcessor := sparse.New(repositoryRoot, assignmentProc)
 
 	// Configure sparse-checkout for the current branch
-	err = checkoutProcessor.Configure()
+	err = checkoutProcessor.Checkout()
 	if err != nil {
 		return fmt.Errorf("failed to configure sparse checkout: %w", err)
 	}
