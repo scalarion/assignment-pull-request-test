@@ -47,8 +47,8 @@ func processAssignmentBranch(repositoryRoot string) error {
 	}
 
 	// Get processors directly
-	rootProcessor := workflowProcessor.RootProcessor()
-	assignmentProcessor := workflowProcessor.AssignmentProcessor()
+	rootProcessor := workflowProcessor.RootPattern()
+	assignmentProcessor := workflowProcessor.AssignmentPattern()
 
 	// Skip operations if no patterns found
 	if len(rootProcessor.Patterns()) == 0 || len(assignmentProcessor.Patterns()) == 0 {
