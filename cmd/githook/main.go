@@ -23,7 +23,7 @@ func main() {
 
 	// Only process branch checkouts
 	if branchCheckout != "1" {
-		os.Exit(0)
+		return
 	}
 
 	// Get current branch name for display
@@ -31,7 +31,7 @@ func main() {
 	currentBranch, err := gitOps.GetCurrentBranch()
 	if err != nil {
 		log.Printf("Failed to get current branch: %v", err)
-		os.Exit(0)
+		return
 	}
 
 	fmt.Printf("Post-checkout hook: switched from %s to %s (branch: %s)\n", oldRef[:8], newRef[:8], currentBranch)
@@ -41,11 +41,6 @@ func main() {
 	err = workflowProcessor.ParseAllFiles()
 	if err != nil {
 		log.Printf("Failed to parse workflow files: %v", err)
-		os.Exit(0)
-	}
-
-	if len(workflowProcessor.RootProcessor().Patterns()) == 0 || len(workflowProcessor.AssignmentProcessor().Patterns()) == 0 {
-		fmt.Println("No assignment-pull-request action configurations found")
 		os.Exit(0)
 	}
 
