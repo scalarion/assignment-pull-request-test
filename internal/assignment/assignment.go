@@ -11,21 +11,21 @@ import (
 	"assignment-pull-request/internal/regex"
 )
 
-// AssignmentInfo represents an assignment with its path and generated branch name
-type AssignmentInfo struct {
+// Info represents an assignment with its path and generated branch name
+type Info struct {
 	Path       string
 	BranchName string
 }
 
-// AssignmentProcessor handles assignment discovery and processing
-type AssignmentProcessor struct {
-	rootFolder                    string
-	rootPatternProcessor          *regex.Processor
-	assignmentPatternProcessor    *regex.Processor
+// Processor handles assignment discovery and processing
+type Processor struct {
+	rootFolder          string
+	rootPattern         *regex.Processor
+	assignmentPattern   *regex.Processor
 }
 
-// NewAssignmentProcessor creates a new AssignmentProcessor with regex pattern processors
-func NewAssignmentProcessor(rootFolder string, rootProcessor, assignmentProcessor *regex.Processor) (*AssignmentProcessor, error) {
+// NewProcessor creates a new Processor with regex pattern processors
+func NewProcessor(rootFolder string, rootProcessor, assignmentProcessor *regex.Processor) (*Processor, error) {
 	// Get compiled patterns to validate assignment patterns have capturing groups
 	assignmentPatterns, err := assignmentProcessor.Compiled()
 	if err != nil {
@@ -39,10 +39,10 @@ func NewAssignmentProcessor(rootFolder string, rootProcessor, assignmentProcesso
 		}
 	}
 
-	return &AssignmentProcessor{
-		rootFolder:                 rootFolder,
-		rootPatternProcessor:       rootProcessor,
-		assignmentPatternProcessor: assignmentProcessor,
+	return &Processor{
+		rootFolder:        rootFolder,
+		rootPattern:       rootProcessor,
+		assignmentPattern: assignmentProcessor,
 	}, nil
 }
 
@@ -56,7 +56,7 @@ func HasCapturingGroups(regex *regexp.Regexp) bool {
 
 
 // ProcessAssignments discovers all assignments and returns assignment info with unique branch names
-func (ap *AssignmentProcessor) ProcessAssignments() ([]AssignmentInfo, error) {
+func (ap *Processor) ProcessAssignments() ([]Info, error) {
 	// Find all assignment paths
 	assignments, err := ap.findAssignments()
 	if err != nil {
@@ -64,11 +64,11 @@ func (ap *AssignmentProcessor) ProcessAssignments() ([]AssignmentInfo, error) {
 	}
 
 	if len(assignments) == 0 {
-		return []AssignmentInfo{}, nil
+		return []Info{}, nil
 	}
 
-	// Convert to AssignmentInfo with branch names
-	var assignmentInfos []AssignmentInfo
+	// Convert to Info with branch names
+	var assignmentInfos []Info
 	for _, assignmentPath := range assignments {
 		branchName, matched := ap.extractBranchNameFromPath(assignmentPath)
 		if !matched {
@@ -76,7 +76,7 @@ func (ap *AssignmentProcessor) ProcessAssignments() ([]AssignmentInfo, error) {
 			continue
 		}
 
-		assignmentInfos = append(assignmentInfos, AssignmentInfo{
+		assignmentInfos = append(assignmentInfos, Info{
 			Path:       assignmentPath,
 			BranchName: branchName,
 		})
@@ -91,7 +91,7 @@ func (ap *AssignmentProcessor) ProcessAssignments() ([]AssignmentInfo, error) {
 }
 
 // validateBranchNameUniqueness checks that all assignments generate unique branch names
-func (ap *AssignmentProcessor) validateBranchNameUniqueness(assignments []AssignmentInfo) error {
+func (ap *Processor) validateBranchNameUniqueness(assignments []Info) error {
 	branchToAssignments := make(map[string][]string)
 
 	// Collect all branch names and track which assignments generate them
@@ -115,7 +115,7 @@ func (ap *AssignmentProcessor) validateBranchNameUniqueness(assignments []Assign
 }
 
 // findAssignments finds all assignment folders matching the processor's regex patterns
-func (ap *AssignmentProcessor) findAssignments() ([]string, error) {
+func (ap *Processor) findAssignments() ([]string, error) {
 	var assignments []string
 
 	// Determine the root directory to walk
@@ -145,7 +145,7 @@ func (ap *AssignmentProcessor) findAssignments() ([]string, error) {
 		}
 
 		// Check if this directory matches any root pattern
-		rootPatterns, err := ap.rootPatternProcessor.Compiled()
+		rootPatterns, err := ap.rootPattern.Compiled()
 		if err != nil {
 			return err
 		}
@@ -175,7 +175,7 @@ func (ap *AssignmentProcessor) findAssignments() ([]string, error) {
 }
 
 // findAssignmentsInDirectory finds assignments within a specific directory
-func (ap *AssignmentProcessor) findAssignmentsInDirectory(rootDir string) ([]string, error) {
+func (ap *Processor) findAssignmentsInDirectory(rootDir string) ([]string, error) {
 	var assignments []string
 
 	err := filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
@@ -197,7 +197,7 @@ func (ap *AssignmentProcessor) findAssignmentsInDirectory(rootDir string) ([]str
 		}
 
 		// Check if this directory matches any assignment pattern
-		assignmentPatterns, err := ap.assignmentPatternProcessor.Compiled()
+		assignmentPatterns, err := ap.assignmentPattern.Compiled()
 		if err != nil {
 			return nil
 		}
@@ -219,18 +219,18 @@ func (ap *AssignmentProcessor) findAssignmentsInDirectory(rootDir string) ([]str
 }
 
 // GetRootRegexStrings returns the root regex patterns as strings
-func (ap *AssignmentProcessor) GetRootRegexStrings() []string {
-	return ap.rootPatternProcessor.Patterns()
+func (ap *Processor) GetRootRegexStrings() []string {
+	return ap.rootPattern.Patterns()
 }
 
 // GetAssignmentRegexStrings returns the assignment regex patterns as strings
-func (ap *AssignmentProcessor) GetAssignmentRegexStrings() []string {
-	return ap.assignmentPatternProcessor.Patterns()
+func (ap *Processor) GetAssignmentRegexStrings() []string {
+	return ap.assignmentPattern.Patterns()
 }
 
 // extractBranchNameFromPath extracts a branch name from a path using the processor's compiled patterns
-func (ap *AssignmentProcessor) extractBranchNameFromPath(assignmentPath string) (string, bool) {
-	assignmentPatterns, err := ap.assignmentPatternProcessor.Compiled()
+func (ap *Processor) extractBranchNameFromPath(assignmentPath string) (string, bool) {
+	assignmentPatterns, err := ap.assignmentPattern.Compiled()
 	if err != nil {
 		return "", false
 	}
@@ -305,7 +305,7 @@ func (ap *AssignmentProcessor) extractBranchNameFromPath(assignmentPath string) 
 
 // sanitizeBranchName sanitizes a branch name to match Creator's original behavior
 // Only sanitizes spaces and slashes, preserves other special characters
-func (ap *AssignmentProcessor) sanitizeBranchName(name string) string {
+func (ap *Processor) sanitizeBranchName(name string) string {
 	// Remove leading/trailing whitespace
 	branchName := strings.TrimSpace(name)
 

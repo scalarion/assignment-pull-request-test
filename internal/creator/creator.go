@@ -20,35 +20,35 @@ import (
 
 // Config holds configuration for the PR creator
 type Config struct {
-	gitHubToken                   string
-	rootPatternProcessor          *regex.Processor
-	assignmentPatternProcessor    *regex.Processor
-	repositoryName                string
-	defaultBranch                 string
-	dryRun                        bool
+	gitHubToken       string
+	rootPattern       *regex.Processor
+	assignmentPattern *regex.Processor
+	repositoryName    string
+	defaultBranch     string
+	dryRun            bool
 }
 
 // NewConfig creates a new Config with the given parameters
 func NewConfig(gitHubToken, repositoryName, defaultBranch string, assignmentsRootRegex, assignmentRegex []string, dryRun bool) *Config {
 	return &Config{
-		gitHubToken:                   gitHubToken,
-		repositoryName:                repositoryName,
-		defaultBranch:                 defaultBranch,
-		rootPatternProcessor:          regex.NewWithPatterns(assignmentsRootRegex),
-		assignmentPatternProcessor:    regex.NewWithPatterns(assignmentRegex),
-		dryRun:                        dryRun,
+		gitHubToken:       gitHubToken,
+		repositoryName:    repositoryName,
+		defaultBranch:     defaultBranch,
+		rootPattern:       regex.NewWithPatterns(assignmentsRootRegex),
+		assignmentPattern: regex.NewWithPatterns(assignmentRegex),
+		dryRun:            dryRun,
 	}
 }
 
 // NewConfigFromEnv creates a new Config from environment variables
 func NewConfigFromEnv() *Config {
 	return &Config{
-		gitHubToken:                os.Getenv(constants.EnvGitHubToken),
-		repositoryName:             os.Getenv(constants.EnvGitHubRepository),
-		defaultBranch:              getEnvWithDefault(constants.EnvDefaultBranch, constants.DefaultBranch),
-		rootPatternProcessor:       regex.NewFromCommaSeparated(getEnvWithDefault(constants.EnvAssignmentsRootRegex, constants.DefaultAssignmentsRootRegex)),
-		assignmentPatternProcessor: regex.NewFromCommaSeparated(getEnvWithDefault(constants.EnvAssignmentRegex, constants.DefaultAssignmentRegex)),
-		dryRun:                     isDryRun(getEnvWithDefault(constants.EnvDryRun, constants.DefaultDryRun)),
+		gitHubToken:       os.Getenv(constants.EnvGitHubToken),
+		repositoryName:    os.Getenv(constants.EnvGitHubRepository),
+		defaultBranch:     getEnvWithDefault(constants.EnvDefaultBranch, constants.DefaultBranch),
+		rootPattern:       regex.NewFromCommaSeparated(getEnvWithDefault(constants.EnvAssignmentsRootRegex, constants.DefaultAssignmentsRootRegex)),
+		assignmentPattern: regex.NewFromCommaSeparated(getEnvWithDefault(constants.EnvAssignmentRegex, constants.DefaultAssignmentRegex)),
+		dryRun:            isDryRun(getEnvWithDefault(constants.EnvDryRun, constants.DefaultDryRun)),
 	}
 }
 
@@ -57,7 +57,7 @@ type Creator struct {
 	config              *Config
 	gitOps              *git.Operations
 	githubClient        *github.Client
-	assignmentProcessor *assignment.AssignmentProcessor
+	assignmentProcessor *assignment.Processor
 	createdBranches     []string
 	createdPullRequests []string
 	pendingPushes       []string
@@ -73,7 +73,7 @@ func NewWithConfig(config *Config) (*Creator, error) {
 	}
 
 	// Create assignment processor with pattern processors from config
-	assignmentProc, err := assignment.NewAssignmentProcessor("", config.rootPatternProcessor, config.assignmentPatternProcessor)
+	assignmentProc, err := assignment.NewProcessor("", config.rootPattern, config.assignmentPattern)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create assignment processor: %w", err)
 	}
@@ -541,8 +541,8 @@ func (c *Creator) Run() error {
 		fmt.Println("🔄 LIVE MODE: Using local git operations with atomic remote push")
 	}
 	fmt.Printf("Repository: %s\n", c.config.repositoryName)
-	fmt.Printf("Assignments root regex: %s\n", c.config.rootPatternProcessor.Patterns())
-	fmt.Printf("Assignment regex: %s\n", c.config.assignmentPatternProcessor.Patterns())
+	fmt.Printf("Assignments root regex: %s\n", c.config.rootPattern.Patterns())
+	fmt.Printf("Assignment regex: %s\n", c.config.assignmentPattern.Patterns())
 	fmt.Printf("Default branch: %s\n", c.config.defaultBranch)
 	fmt.Printf("Dry run mode: %t\n", c.config.dryRun)
 

@@ -85,7 +85,7 @@ func processAssignmentBranch(currentBranch string, patterns *workflow.WorkflowPa
 	assignmentProcessor := regex.NewWithPatterns(assignmentPatterns)
 
 	// Find all assignment folders using assignment package
-	processor, err := assignment.NewAssignmentProcessor("", rootProcessor, assignmentProcessor)
+	processor, err := assignment.NewProcessor("", rootProcessor, assignmentProcessor)
 	if err != nil {
 		return fmt.Errorf("failed to create assignment processor: %w", err)
 	}
