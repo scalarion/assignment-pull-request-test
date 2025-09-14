@@ -118,7 +118,7 @@ func (c *Creator) createBranch(branchName string) error {
 func (c *Creator) createReadme(assignmentPath string) error {
 	readmePath := filepath.Join(assignmentPath, constants.ReadmeFileName)
 	caser := cases.Title(language.English)
-	assignmentTitle := caser.String(strings.ReplaceAll(assignmentPath, "/", " - "))
+	assignmentTitle := caser.String(strings.ReplaceAll(assignmentPath, string(filepath.Separator), " - "))
 
 	// Create assignment directory if it doesn't exist
 	if !c.config.DryRun {
@@ -208,7 +208,7 @@ Please add your submission guidelines here.
 // createPullRequest creates a pull request for the assignment branch using GitHub API
 func (c *Creator) createPullRequest(assignmentPath, branchName string) error {
 	caser := cases.Title(language.English)
-	title := fmt.Sprintf("Assignment: %s", caser.String(strings.ReplaceAll(assignmentPath, "/", " - ")))
+	title := fmt.Sprintf("Assignment: %s", caser.String(strings.ReplaceAll(assignmentPath, string(filepath.Separator), " - ")))
 
 	// Try to read instructions.md file for PR body content
 	body, err := c.createPullRequestBody(assignmentPath)
@@ -309,8 +309,8 @@ func (c *Creator) rewriteImageLinks(content, assignmentPath string) string {
 
 		// Rewrite relative path to be relative to repo root
 		rewrittenPath := filepath.Join(assignmentPath, imagePath)
-		// Normalize path separators for cross-platform compatibility
-		rewrittenPath = strings.ReplaceAll(rewrittenPath, "\\", "/")
+		// Convert to forward slashes for web compatibility (Git/GitHub always uses forward slashes)
+		rewrittenPath = filepath.ToSlash(rewrittenPath)
 
 		return fmt.Sprintf("![%s](%s)", altText, rewrittenPath)
 	})

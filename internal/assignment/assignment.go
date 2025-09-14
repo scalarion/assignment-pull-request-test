@@ -82,7 +82,7 @@ func (ap *AssignmentProcessor) ProcessAssignments() ([]AssignmentInfo, error) {
 	// Convert to AssignmentInfo with branch names
 	var assignmentInfos []AssignmentInfo
 	for _, assignmentPath := range assignments {
-		branchName, matched := ExtractBranchNameFromCompiledPatterns(assignmentPath, ap.assignmentPatterns)
+		branchName, matched := ap.extractBranchNameFromPath(assignmentPath)
 		if !matched {
 			// Skip assignments that don't match any pattern
 			continue
@@ -270,48 +270,9 @@ func CompilePatterns(patterns []string) ([]*regexp.Regexp, error) {
 	return compiled, nil
 }
 
-// Backward compatibility functions - these maintain the original API
-
-// FindAssignments finds all assignment folders matching the given regex patterns
-func FindAssignments(rootRegexPatterns, assignmentRegexPatterns []string) ([]string, error) {
-	processor, err := NewAssignmentProcessor("", rootRegexPatterns, assignmentRegexPatterns)
-	if err != nil {
-		return nil, err
-	}
-
-	assignments, err := processor.ProcessAssignments()
-	if err != nil {
-		return nil, err
-	}
-
-	// Convert to just paths for backward compatibility
-	paths := make([]string, len(assignments))
-	for i, assignment := range assignments {
-		paths[i] = assignment.Path
-	}
-
-	return paths, nil
-}
-
-// ExtractBranchNameFromPath extracts a branch name from a path using regex patterns
-func ExtractBranchNameFromPath(assignmentPath string, assignmentPatterns []string) (string, bool) {
-	// Compile patterns
-	compiledPatterns := make([]*regexp.Regexp, len(assignmentPatterns))
-	for i, pattern := range assignmentPatterns {
-		compiled, err := regexp.Compile(pattern)
-		if err != nil {
-			// Skip invalid patterns
-			continue
-		}
-		compiledPatterns[i] = compiled
-	}
-
-	return ExtractBranchNameFromCompiledPatterns(assignmentPath, compiledPatterns)
-}
-
-// ExtractBranchNameFromCompiledPatterns extracts a branch name from a path using compiled regex patterns
-func ExtractBranchNameFromCompiledPatterns(assignmentPath string, compiledPatterns []*regexp.Regexp) (string, bool) {
-	for _, pattern := range compiledPatterns {
+// extractBranchNameFromPath extracts a branch name from a path using the processor's compiled patterns
+func (ap *AssignmentProcessor) extractBranchNameFromPath(assignmentPath string) (string, bool) {
+	for _, pattern := range ap.assignmentPatterns {
 		if pattern == nil {
 			continue
 		}
@@ -370,7 +331,7 @@ func ExtractBranchNameFromCompiledPatterns(assignmentPath string, compiledPatter
 
 			// Combine parts and sanitize
 			branchName := strings.Join(branchParts, "-")
-			branchName = SanitizeBranchName(branchName)
+			branchName = ap.SanitizeBranchName(branchName)
 
 			return branchName, true
 		}
@@ -381,7 +342,7 @@ func ExtractBranchNameFromCompiledPatterns(assignmentPath string, compiledPatter
 
 // SanitizeBranchName sanitizes a branch name to match Creator's original behavior
 // Only sanitizes spaces and slashes, preserves other special characters
-func SanitizeBranchName(name string) string {
+func (ap *AssignmentProcessor) SanitizeBranchName(name string) string {
 	// Remove leading/trailing whitespace
 	branchName := strings.TrimSpace(name)
 

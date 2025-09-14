@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"assignment-pull-request/internal/assignment"
@@ -79,17 +80,21 @@ func processAssignmentBranch(currentBranch string, patterns *workflow.WorkflowPa
 	}
 
 	// Find all assignment folders using assignment package
-	allAssignments, err := assignment.FindAssignments(rootPatterns, assignmentPatterns)
+	processor, err := assignment.NewAssignmentProcessor("", rootPatterns, assignmentPatterns)
+	if err != nil {
+		return fmt.Errorf("failed to create assignment processor: %w", err)
+	}
+
+	allAssignments, err := processor.ProcessAssignments()
 	if err != nil {
 		return fmt.Errorf("failed to find assignments: %w", err)
 	}
 
 	// Filter assignments that match the current branch
 	var matchingAssignments []string
-	for _, assignmentPath := range allAssignments {
-		branchName, matched := assignment.ExtractBranchNameFromPath(assignmentPath, assignmentPatterns)
-		if matched && branchName == currentBranch {
-			matchingAssignments = append(matchingAssignments, assignmentPath)
+	for _, assignmentInfo := range allAssignments {
+		if assignmentInfo.BranchName == currentBranch {
+			matchingAssignments = append(matchingAssignments, assignmentInfo.Path)
 		}
 	}
 
@@ -126,16 +131,16 @@ func setupSparseCheckout(paths []string) error {
 
 	// Always include essential files
 	content := []string{
-		"/*",                                     // Include all files in root
-		"!*/",                                    // Exclude all directories
-		constants.GitHubActionsWorkflowDir + "/", // Include .github directory
-		constants.ReadmeFileName,                 // Include README
-		"*" + constants.MarkdownExtension,        // Include all markdown files
+		"/*",                                                                       // Include all files in root
+		"!*/",                                                                      // Exclude all directories
+		filepath.ToSlash(filepath.Join(constants.GitHubActionsWorkflowDir, "")), // Include .github directory
+		constants.ReadmeFileName,                                                   // Include README
+		"*" + constants.MarkdownExtension,                                          // Include all markdown files
 	}
 
 	// Add the matching assignment folders
 	for _, path := range paths {
-		content = append(content, path+"/")
+		content = append(content, filepath.ToSlash(path)+"/")
 	}
 
 	contentStr := strings.Join(content, "\n") + "\n"
