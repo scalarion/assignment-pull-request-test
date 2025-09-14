@@ -10,7 +10,6 @@ import (
 
 	"assignment-pull-request/internal/assignment"
 	"assignment-pull-request/internal/constants"
-	"assignment-pull-request/internal/regex"
 	"assignment-pull-request/internal/workflow"
 )
 
@@ -39,19 +38,20 @@ func main() {
 	fmt.Printf("Post-checkout hook: switched from %s to %s (branch: %s)\n", oldRef[:8], newRef[:8], currentBranch)
 
 	// Parse workflow files to find assignment configurations
-	patterns, err := workflow.ParseAllWorkflows()
+	workflowProcessor := workflow.New()
+	err = workflowProcessor.ParseAllFiles()
 	if err != nil {
 		log.Printf("Failed to parse workflow files: %v", err)
 		os.Exit(0)
 	}
 
-	if len(patterns.RootPatterns) == 0 || len(patterns.AssignmentPatterns) == 0 {
+	if len(workflowProcessor.RootProcessor().Patterns()) == 0 || len(workflowProcessor.AssignmentProcessor().Patterns()) == 0 {
 		fmt.Println("No assignment-pull-request action configurations found")
 		os.Exit(0)
 	}
 
 	// Process the configuration
-	err = processAssignmentBranch(currentBranch, patterns)
+	err = processAssignmentBranch(currentBranch, workflowProcessor)
 	if err != nil {
 		log.Printf("Error processing assignments: %v", err)
 	}
@@ -68,21 +68,18 @@ func getCurrentBranch() (string, error) {
 }
 
 // processAssignmentBranch handles the assignment branch logic
-func processAssignmentBranch(currentBranch string, patterns *workflow.WorkflowPatterns) error {
-	// Use default patterns if none found
-	rootPatterns := patterns.RootPatterns
-	assignmentPatterns := patterns.AssignmentPatterns
+func processAssignmentBranch(currentBranch string, workflowProcessor *workflow.Processor) error {
+	// Get processors directly, with defaults if empty
+	rootProcessor := workflowProcessor.RootProcessor()
+	assignmentProcessor := workflowProcessor.AssignmentProcessor()
 
-	if len(rootPatterns) == 0 {
-		rootPatterns = []string{constants.DefaultAssignmentsRootRegex}
+	// Add default patterns if none found
+	if len(rootProcessor.Patterns()) == 0 {
+		rootProcessor.Add(constants.DefaultAssignmentsRootRegex)
 	}
-	if len(assignmentPatterns) == 0 {
-		assignmentPatterns = []string{constants.DefaultAssignmentRegex}
+	if len(assignmentProcessor.Patterns()) == 0 {
+		assignmentProcessor.Add(constants.DefaultAssignmentRegex)
 	}
-
-		// Compile regex patterns using the regex processor
-	rootProcessor := regex.NewWithPatterns(rootPatterns)
-	assignmentProcessor := regex.NewWithPatterns(assignmentPatterns)
 
 	// Find all assignment folders using assignment package
 	processor, err := assignment.NewProcessor("", rootProcessor, assignmentProcessor)
