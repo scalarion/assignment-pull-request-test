@@ -19,9 +19,9 @@ type Info struct {
 
 // Processor handles assignment discovery and processing
 type Processor struct {
-	rootFolder          string
-	rootPattern         *regex.Processor
-	assignmentPattern   *regex.Processor
+	rootFolder        string
+	rootPattern       *regex.Processor
+	assignmentPattern *regex.Processor
 }
 
 // NewProcessor creates a new Processor with regex pattern processors
@@ -53,7 +53,6 @@ func HasCapturingGroups(regex *regexp.Regexp) bool {
 	// for the entire match. If there are more elements, there are capturing groups
 	return len(names) > 1
 }
-
 
 // ProcessAssignments discovers all assignments and returns assignment info with unique branch names
 func (ap *Processor) ProcessAssignments() ([]Info, error) {
@@ -234,7 +233,7 @@ func (ap *Processor) extractBranchNameFromPath(assignmentPath string) (string, b
 	if err != nil {
 		return "", false
 	}
-	
+
 	for _, pattern := range assignmentPatterns {
 		if pattern == nil {
 			continue

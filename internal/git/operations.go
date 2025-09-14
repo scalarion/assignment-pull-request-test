@@ -207,19 +207,41 @@ func (o *Operations) GetCurrentBranch() (string, error) {
 	)
 }
 
-// EnableSparseCheckout enables Git sparse-checkout feature
-func (o *Operations) EnableSparseCheckout() error {
+// InitSparseCheckout initializes sparse-checkout using modern init command
+func (o *Operations) InitSparseCheckout() error {
 	return o.commander.RunCommand(
-		"git config core.sparseCheckout true",
-		"Enable sparse-checkout",
+		"git sparse-checkout init",
+		"Initialize sparse-checkout",
 	)
 }
 
-// DisableSparseCheckout disables Git sparse-checkout feature
+// EnableSparseCheckoutCone enables Git sparse-checkout with cone mode using modern init command
+func (o *Operations) InitSparseCheckoutCone() error {
+	return o.commander.RunCommand(
+		"git sparse-checkout init --cone",
+		"Initialize sparse-checkout with cone mode",
+	)
+}
+
+// SetSparseCheckoutPaths sets the sparse-checkout paths using git sparse-checkout command
+func (o *Operations) SetSparseCheckoutPaths(paths []string) error {
+	if len(paths) == 0 {
+		return fmt.Errorf("no paths provided for sparse-checkout")
+	}
+
+	// Use git sparse-checkout set command with paths
+	pathsStr := strings.Join(paths, " ")
+	return o.commander.RunCommand(
+		fmt.Sprintf("git sparse-checkout set %s", pathsStr),
+		"Set sparse-checkout paths",
+	)
+}
+
+// DisableSparseCheckout disables sparse-checkout using modern git command
 func (o *Operations) DisableSparseCheckout() error {
 	return o.commander.RunCommand(
-		"git config core.sparseCheckout false",
-		"Disable sparse-checkout",
+		"git sparse-checkout disable",
+		"Disable sparse-checkout completely",
 	)
 }
 

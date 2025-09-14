@@ -42,7 +42,7 @@ func (p *Processor) Add(patterns ...string) {
 	for _, existing := range p.patterns {
 		seen[existing] = true
 	}
-	
+
 	for _, pattern := range patterns {
 		if pattern != "" && !seen[pattern] {
 			p.patterns = append(p.patterns, pattern)
@@ -112,4 +112,3 @@ func parseCommaSeparated(patterns string) []string {
 	}
 	return result
 }
-

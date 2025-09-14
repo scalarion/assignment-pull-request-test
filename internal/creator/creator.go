@@ -469,5 +469,3 @@ func getEnvWithDefault(key, defaultValue string) string {
 func isDryRun(dryRunStr string) bool {
 	return strings.ToLower(dryRunStr) == "true" || dryRunStr == "1" || strings.ToLower(dryRunStr) == "yes"
 }
-
-

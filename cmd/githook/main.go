@@ -63,6 +63,12 @@ func processAssignmentBranch(workflowProcessor *workflow.Processor) error {
 		return nil
 	}
 
+	// Get repository root (current working directory)
+	repositoryRoot, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get current working directory: %w", err)
+	}
+
 	// Find all assignment folders using assignment package
 	assignmentProc, err := assignment.NewProcessor("", rootProcessor, assignmentProcessor)
 	if err != nil {
@@ -70,29 +76,13 @@ func processAssignmentBranch(workflowProcessor *workflow.Processor) error {
 	}
 
 	// Create checkout processor and configure sparse-checkout
-	checkoutProcessor := checkout.New(assignmentProc)
-	
-	matchingAssignments, err := checkoutProcessor.GetMatchingAssignments()
+	checkoutProcessor := checkout.New(assignmentProc, repositoryRoot)
+
+	// Configure sparse-checkout for the current branch
+	err = checkoutProcessor.Configure()
 	if err != nil {
-		return fmt.Errorf("failed to get matching assignments: %w", err)
+		return fmt.Errorf("failed to configure sparse checkout: %w", err)
 	}
 
-	if len(matchingAssignments) == 0 {
-		fmt.Printf("No assignment folders match current branch\n")
-		return nil
-	}
-
-	fmt.Printf("Found %d matching assignment folder(s) for current branch\n", len(matchingAssignments))
-	for _, assignmentFolder := range matchingAssignments {
-		fmt.Printf("  - %s\n", assignmentFolder)
-	}
-
-	// Setup sparse-checkout for the matching assignments
-	err = checkoutProcessor.ConfigureWithPaths(matchingAssignments)
-	if err != nil {
-		return fmt.Errorf("failed to setup sparse checkout: %w", err)
-	}
-
-	fmt.Printf("Sparse checkout configured for %d assignment folder(s)\n", len(matchingAssignments))
 	return nil
 }

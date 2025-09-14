@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"assignment-pull-request/internal/assignment"
-	"assignment-pull-request/internal/constants"
 	"assignment-pull-request/internal/git"
 )
 
@@ -15,22 +14,109 @@ import (
 type Processor struct {
 	assignmentProcessor *assignment.Processor
 	gitOps              *git.Operations
+	repositoryRoot      string
 }
 
 // New creates a new checkout processor
-func New(assignmentProcessor *assignment.Processor) *Processor {
+func New(assignmentProcessor *assignment.Processor, repositoryRoot string) *Processor {
 	return &Processor{
 		assignmentProcessor: assignmentProcessor,
 		gitOps:              git.NewOperations(false), // Not in dry-run mode
+		repositoryRoot:      repositoryRoot,
 	}
 }
 
 // NewWithGitOps creates a new checkout processor with custom git operations
-func NewWithGitOps(assignmentProcessor *assignment.Processor, gitOps *git.Operations) *Processor {
+func NewWithGitOps(assignmentProcessor *assignment.Processor, gitOps *git.Operations, repositoryRoot string) *Processor {
 	return &Processor{
 		assignmentProcessor: assignmentProcessor,
 		gitOps:              gitOps,
+		repositoryRoot:      repositoryRoot,
 	}
+}
+
+// configureWithPaths sets up Git sparse-checkout with the provided assignment paths
+// If assignmentPaths is nil or empty, it will automatically get matching assignments for the current branch
+func (p *Processor) Configure() error {
+	// Disable sparse-checkout at the very beginning to reset state
+	if err := p.gitOps.DisableSparseCheckout(); err != nil {
+		// Ignore error if sparse-checkout wasn't enabled
+		fmt.Printf("Warning: could not disable sparse-checkout (may not be enabled): %v\n", err)
+	}
+
+	// Get matching assignments for current branch
+	assignmentPaths, err := p.getMatchingAssignments()
+	if err != nil {
+		return fmt.Errorf("failed to get matching assignments: %w", err)
+	}
+
+	if len(assignmentPaths) == 0 {
+		fmt.Printf("No assignment folders match current branch\n")
+		return nil
+	}
+
+	fmt.Printf("Found %d matching assignment folder(s) for current branch\n", len(assignmentPaths))
+	for _, assignmentFolder := range assignmentPaths {
+		fmt.Printf("  - %s\n", assignmentFolder)
+	}
+
+	// Scan repository root folders
+	rootFolders, err := p.scanRepositoryRootFolders()
+	if err != nil {
+		return fmt.Errorf("failed to scan repository root folders: %w", err)
+	}
+
+	// Get all unique assignment root folders by extracting the first directory component from assignment paths
+	allAssignments, err := p.assignmentProcessor.ProcessAssignments()
+	if err != nil {
+		return fmt.Errorf("failed to process assignments: %w", err)
+	}
+
+	assignmentRootFoldersMap := make(map[string]bool)
+	for _, assignment := range allAssignments {
+		if assignment.Path != "" {
+			// Extract root folder from assignment path (e.g., "assignments/hw-1" -> "assignments")
+			normalizedPath := filepath.ToSlash(assignment.Path)
+			pathParts := strings.Split(normalizedPath, "/")
+			if len(pathParts) > 0 {
+				rootFolder := pathParts[0]
+				if rootFolder != "" {
+					assignmentRootFoldersMap[rootFolder] = true
+				}
+			}
+		}
+	}
+
+	paths := []string{}
+
+	// Add all root folders to paths, but exclude assignment root folders
+	for _, rootFolder := range rootFolders {
+		if !assignmentRootFoldersMap[rootFolder] {
+			paths = append(paths, rootFolder)
+		}
+	}
+	fmt.Printf("Debug: Found root folders (excluding assignment roots): %v\n", rootFolders)
+
+	// Add only the assignment folders that match the current branch name
+	for _, path := range assignmentPaths {
+		normalizedPath := filepath.ToSlash(path)
+		paths = append(paths, normalizedPath)
+	}
+	fmt.Printf("Debug: Final paths for sparse-checkout: %v\n", paths)
+
+	// Enable sparse-checkout with cone mode
+	if err := p.gitOps.InitSparseCheckoutCone(); err != nil {
+		return fmt.Errorf("failed to enable sparse-checkout with cone mode: %w", err)
+	}
+
+	// Use git sparse-checkout set command for cone mode
+	err = p.gitOps.SetSparseCheckoutPaths(paths)
+	if err != nil {
+		return fmt.Errorf("failed to setup sparse checkout: %w", err)
+	}
+
+	fmt.Printf("Sparse checkout configured for %d assignment folder(s)\n", len(assignmentPaths))
+	return nil
 }
 
 // getCurrentBranch returns the name of the currently checked out branch
@@ -38,48 +124,8 @@ func (p *Processor) getCurrentBranch() (string, error) {
 	return p.gitOps.GetCurrentBranch()
 }
 
-// Configure sets up Git sparse-checkout to include all root folders and only
-// assignment folders that match the current branch name exactly
-func (p *Processor) Configure() error {
-	// Get current branch
-	currentBranch, err := p.getCurrentBranch()
-	if err != nil {
-		return fmt.Errorf("failed to get current branch: %w", err)
-	}
-
-	// Find all assignments
-	allAssignments, err := p.assignmentProcessor.ProcessAssignments()
-	if err != nil {
-		return fmt.Errorf("failed to find assignments: %w", err)
-	}
-
-	// Filter assignments that match the current branch
-	var matchingAssignments []string
-	for _, assignmentInfo := range allAssignments {
-		if assignmentInfo.BranchName == currentBranch {
-			matchingAssignments = append(matchingAssignments, assignmentInfo.Path)
-		}
-	}
-
-	if len(matchingAssignments) == 0 {
-		return fmt.Errorf("no assignment folders match branch '%s'", currentBranch)
-	}
-
-	// Setup sparse-checkout with the matching assignments
-	return p.setupSparseCheckout(matchingAssignments)
-}
-
-// ConfigureWithPaths sets up Git sparse-checkout with the provided assignment paths
-func (p *Processor) ConfigureWithPaths(assignmentPaths []string) error {
-	if len(assignmentPaths) == 0 {
-		return fmt.Errorf("no assignment paths provided")
-	}
-
-	return p.setupSparseCheckout(assignmentPaths)
-}
-
-// GetMatchingAssignments returns the assignment paths that match the current branch
-func (p *Processor) GetMatchingAssignments() ([]string, error) {
+// getMatchingAssignments returns the assignment paths that match the current branch
+func (p *Processor) getMatchingAssignments() ([]string, error) {
 	// Get current branch
 	currentBranch, err := p.getCurrentBranch()
 	if err != nil {
@@ -101,53 +147,20 @@ func (p *Processor) GetMatchingAssignments() ([]string, error) {
 	return matchingAssignments, nil
 }
 
-// setupSparseCheckout configures git sparse-checkout for the given assignment paths
-func (p *Processor) setupSparseCheckout(assignmentPaths []string) error {
-	// Enable sparse-checkout
-	if err := p.gitOps.EnableSparseCheckout(); err != nil {
-		return err
-	}
-
-	// Write sparse-checkout file
-	sparseCheckoutPath := constants.SparseCheckoutFile
-
-	// Always include essential files and all root folders
-	content := []string{
-		"/*",                                                                       // Include all files in root
-		"!*/",                                                                      // Exclude all directories
-		filepath.ToSlash(filepath.Join(constants.GitHubActionsWorkflowDir, "")), // Include .github directory
-		constants.ReadmeFileName,                                                   // Include README
-		"*" + constants.MarkdownExtension,                                          // Include all markdown files
-	}
-
-	// Add the matching assignment folders
-	for _, path := range assignmentPaths {
-		content = append(content, filepath.ToSlash(path)+"/")
-	}
-
-	contentStr := strings.Join(content, "\n") + "\n"
-
-	err := os.WriteFile(sparseCheckoutPath, []byte(contentStr), 0644)
+// scanRepositoryRootFolders scans the repository root directory and returns all folder names
+func (p *Processor) scanRepositoryRootFolders() ([]string, error) {
+	entries, err := os.ReadDir(p.repositoryRoot)
 	if err != nil {
-		return fmt.Errorf("failed to write sparse-checkout file: %w", err)
+		return nil, fmt.Errorf("failed to read repository root directory: %w", err)
 	}
 
-	// Apply sparse-checkout
-	return p.gitOps.ApplyCheckout()
-}
-
-// Disable disables Git sparse-checkout and checks out all files
-func (p *Processor) Disable() error {
-	// Disable sparse-checkout
-	if err := p.gitOps.DisableSparseCheckout(); err != nil {
-		return err
+	var folders []string
+	for _, entry := range entries {
+		if entry.IsDir() && !strings.HasPrefix(entry.Name(), ".git") {
+			// Skip .git
+			folders = append(folders, entry.Name())
+		}
 	}
 
-	// Remove sparse-checkout file
-	if err := os.Remove(constants.SparseCheckoutFile); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("failed to remove sparse-checkout file: %w", err)
-	}
-
-	// Apply changes to check out all files
-	return p.gitOps.ApplyCheckout()
+	return folders, nil
 }
