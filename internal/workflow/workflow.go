@@ -84,8 +84,8 @@ func ParseWorkflowFile(filePath string) (*WorkflowPatterns, error) {
 	}
 
 	// Use regex processor for pattern parsing (deduplication is automatic)
-	rootProcessor := regex.NewPatternProcessor()
-	assignmentProcessor := regex.NewPatternProcessor()
+	rootProcessor := regex.New()
+	assignmentProcessor := regex.New()
 
 	// Look for jobs that use the assignment action
 	for _, job := range workflow.Jobs {
@@ -94,14 +94,14 @@ func ParseWorkflowFile(filePath string) (*WorkflowPatterns, error) {
 				// Extract root patterns
 				if rootPatterns, ok := with["assignments-root-regex"]; ok {
 					if rootStr, ok := rootPatterns.(string); ok {
-						rootProcessor.AddCommaSeparatedPatterns(rootStr)
+						rootProcessor.AddCommaSeparated(rootStr)
 					}
 				}
 
 				// Extract assignment patterns
 				if assignmentPatterns, ok := with["assignment-regex"]; ok {
 					if assignmentStr, ok := assignmentPatterns.(string); ok {
-						assignmentProcessor.AddCommaSeparatedPatterns(assignmentStr)
+						assignmentProcessor.AddCommaSeparated(assignmentStr)
 					}
 				}
 			}
@@ -109,8 +109,8 @@ func ParseWorkflowFile(filePath string) (*WorkflowPatterns, error) {
 	}
 
 	return &WorkflowPatterns{
-		RootPatterns:       rootProcessor.GetPatterns(),
-		AssignmentPatterns: assignmentProcessor.GetPatterns(),
+		RootPatterns:       rootProcessor.Patterns(),
+		AssignmentPatterns: assignmentProcessor.Patterns(),
 	}, nil
 }
 
@@ -122,8 +122,8 @@ func ParseAllWorkflows() (*WorkflowPatterns, error) {
 	}
 
 	// Use regex processors for combined pattern handling (deduplication is automatic)
-	rootProcessor := regex.NewPatternProcessor()
-	assignmentProcessor := regex.NewPatternProcessor()
+	rootProcessor := regex.New()
+	assignmentProcessor := regex.New()
 
 	for _, file := range workflowFiles {
 		patterns, err := ParseWorkflowFile(file)
@@ -132,13 +132,13 @@ func ParseAllWorkflows() (*WorkflowPatterns, error) {
 			continue
 		}
 
-		rootProcessor.AddPatterns(patterns.RootPatterns)
-		assignmentProcessor.AddPatterns(patterns.AssignmentPatterns)
+		rootProcessor.Add(patterns.RootPatterns...)
+		assignmentProcessor.Add(patterns.AssignmentPatterns...)
 	}
 
 	return &WorkflowPatterns{
-		RootPatterns:       rootProcessor.GetPatterns(),
-		AssignmentPatterns: assignmentProcessor.GetPatterns(),
+		RootPatterns:       rootProcessor.Patterns(),
+		AssignmentPatterns: assignmentProcessor.Patterns(),
 	}, nil
 }
 

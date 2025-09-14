@@ -6,81 +6,91 @@ import (
 	"strings"
 )
 
-// PatternProcessor handles regex pattern parsing, compilation, and automatic deduplication
-type PatternProcessor struct {
-	patterns         []string
-	patternSet       map[string]bool // For efficient deduplication
-	compiledPatterns []*regexp.Regexp
-	compiled         bool // Track if patterns have been compiled
+// Processor handles regex pattern parsing, compilation, and automatic deduplication
+type Processor struct {
+	patterns []string
+	compiled []*regexp.Regexp
+	dirty    bool // Track if patterns need recompilation
 }
 
-// NewPatternProcessor creates a new PatternProcessor
-func NewPatternProcessor() *PatternProcessor {
-	return &PatternProcessor{
-		patterns:         make([]string, 0),
-		patternSet:       make(map[string]bool),
-		compiledPatterns: make([]*regexp.Regexp, 0),
-		compiled:         false,
+// New creates a new regex processor
+func New() *Processor {
+	return &Processor{
+		patterns: make([]string, 0),
+		compiled: make([]*regexp.Regexp, 0),
+		dirty:    true,
 	}
 }
 
-// NewPatternProcessorWithPatterns creates a new PatternProcessor with the given patterns
-func NewPatternProcessorWithPatterns(patterns []string) *PatternProcessor {
-	pp := NewPatternProcessor()
-	pp.AddPatterns(patterns)
-	return pp
+// NewWithPatterns creates a new processor with the given patterns
+func NewWithPatterns(patterns []string) *Processor {
+	p := New()
+	p.Add(patterns...)
+	return p
 }
 
-// NewPatternProcessorWithCommaSeparated creates a new PatternProcessor with comma-separated patterns
-func NewPatternProcessorWithCommaSeparated(patterns string) *PatternProcessor {
-	pp := NewPatternProcessor()
-	pp.AddCommaSeparatedPatterns(patterns)
-	return pp
+// NewFromCommaSeparated creates a new processor with comma-separated patterns
+func NewFromCommaSeparated(patterns string) *Processor {
+	p := New()
+	p.AddCommaSeparated(patterns)
+	return p
 }
 
-
-// AddPatterns adds string patterns to the processor with automatic deduplication
-func (pp *PatternProcessor) AddPatterns(patterns []string) {
+// Add adds one or more patterns with automatic deduplication
+func (p *Processor) Add(patterns ...string) {
+	seen := make(map[string]bool)
+	for _, existing := range p.patterns {
+		seen[existing] = true
+	}
+	
 	for _, pattern := range patterns {
-		pp.addPattern(pattern)
+		if pattern != "" && !seen[pattern] {
+			p.patterns = append(p.patterns, pattern)
+			seen[pattern] = true
+			p.dirty = true
+		}
 	}
 }
 
-// AddCommaSeparatedPatterns adds comma-separated patterns to the processor with automatic deduplication
-func (pp *PatternProcessor) AddCommaSeparatedPatterns(patterns string) {
-	parsed := ParseCommaSeparated(patterns)
-	pp.AddPatterns(parsed)
+// AddCommaSeparated adds comma-separated patterns
+func (p *Processor) AddCommaSeparated(patterns string) {
+	parsed := parseCommaSeparated(patterns)
+	p.Add(parsed...)
 }
 
-// GetPatterns returns the string patterns (already deduplicated)
-func (pp *PatternProcessor) GetPatterns() []string {
-	return pp.patterns
+// Patterns returns the string patterns
+func (p *Processor) Patterns() []string {
+	return p.patterns
 }
 
-// GetCompiledPatterns returns the compiled regex patterns, compiling them automatically if needed
-func (pp *PatternProcessor) GetCompiledPatterns() ([]*regexp.Regexp, error) {
-	if !pp.compiled {
-		if err := pp.compilePatterns(); err != nil {
+// Compiled returns the compiled regex patterns, compiling them if needed
+func (p *Processor) Compiled() ([]*regexp.Regexp, error) {
+	if p.dirty {
+		if err := p.compile(); err != nil {
 			return nil, err
 		}
-		pp.compiled = true
+		p.dirty = false
 	}
-	return pp.compiledPatterns, nil
+	return p.compiled, nil
 }
 
-// addPattern adds a single pattern with automatic deduplication
-func (pp *PatternProcessor) addPattern(pattern string) {
-	// Only add if pattern is non-empty and not already present
-	if pattern != "" && !pp.patternSet[pattern] {
-		pp.patterns = append(pp.patterns, pattern)
-		pp.patternSet[pattern] = true
-		pp.compiled = false // Mark as needing recompilation
+// compile compiles all string patterns into regex patterns
+func (p *Processor) compile() error {
+	compiled := make([]*regexp.Regexp, len(p.patterns))
+	for i, pattern := range p.patterns {
+		regex, err := regexp.Compile(pattern)
+		if err != nil {
+			return fmt.Errorf("invalid regex pattern '%s': %w", pattern, err)
+		}
+		compiled[i] = regex
 	}
+	p.compiled = compiled
+	return nil
 }
 
 // parseCommaSeparated parses a comma-separated string of regex patterns into a slice
 // Supports escaping commas with \, to allow commas within regex patterns
-func ParseCommaSeparated(patterns string) []string {
+func parseCommaSeparated(patterns string) []string {
 	if patterns == "" {
 		return []string{}
 	}
@@ -101,19 +111,5 @@ func ParseCommaSeparated(patterns string) []string {
 		}
 	}
 	return result
-}
-
-// compilePatterns compiles all string patterns into regex patterns
-func (pp *PatternProcessor) compilePatterns() error {
-	compiled := make([]*regexp.Regexp, len(pp.patterns))
-	for i, pattern := range pp.patterns {
-		regex, err := regexp.Compile(pattern)
-		if err != nil {
-			return fmt.Errorf("invalid regex pattern '%s': %w", pattern, err)
-		}
-		compiled[i] = regex
-	}
-	pp.compiledPatterns = compiled
-	return nil
 }
 

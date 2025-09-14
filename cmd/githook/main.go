@@ -81,8 +81,8 @@ func processAssignmentBranch(currentBranch string, patterns *workflow.WorkflowPa
 	}
 
 		// Compile regex patterns using the regex processor
-	rootProcessor := regex.NewPatternProcessorWithPatterns(rootPatterns)
-	assignmentProcessor := regex.NewPatternProcessorWithPatterns(assignmentPatterns)
+	rootProcessor := regex.NewWithPatterns(rootPatterns)
+	assignmentProcessor := regex.NewWithPatterns(assignmentPatterns)
 
 	// Find all assignment folders using assignment package
 	processor, err := assignment.NewAssignmentProcessor("", rootProcessor, assignmentProcessor)

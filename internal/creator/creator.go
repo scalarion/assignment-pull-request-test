@@ -21,8 +21,8 @@ import (
 // Config holds configuration for the PR creator
 type Config struct {
 	gitHubToken                   string
-	rootPatternProcessor          *regex.PatternProcessor
-	assignmentPatternProcessor    *regex.PatternProcessor
+	rootPatternProcessor          *regex.Processor
+	assignmentPatternProcessor    *regex.Processor
 	repositoryName                string
 	defaultBranch                 string
 	dryRun                        bool
@@ -34,27 +34,22 @@ func NewConfig(gitHubToken, repositoryName, defaultBranch string, assignmentsRoo
 		gitHubToken:                   gitHubToken,
 		repositoryName:                repositoryName,
 		defaultBranch:                 defaultBranch,
-		rootPatternProcessor:          regex.NewPatternProcessorWithPatterns(assignmentsRootRegex),
-		assignmentPatternProcessor:    regex.NewPatternProcessorWithPatterns(assignmentRegex),
+		rootPatternProcessor:          regex.NewWithPatterns(assignmentsRootRegex),
+		assignmentPatternProcessor:    regex.NewWithPatterns(assignmentRegex),
 		dryRun:                        dryRun,
 	}
 }
 
 // NewConfigFromEnv creates a new Config from environment variables
 func NewConfigFromEnv() *Config {
-	// Parse environment variables into string arrays
-	rootPatterns := regex.ParseCommaSeparated(getEnvWithDefault(constants.EnvAssignmentsRootRegex, constants.DefaultAssignmentsRootRegex))
-	assignmentPatterns := regex.ParseCommaSeparated(getEnvWithDefault(constants.EnvAssignmentRegex, constants.DefaultAssignmentRegex))
-	
-	// Use NewConfig to create the config with proper validation and initialization
-	return NewConfig(
-		os.Getenv(constants.EnvGitHubToken),
-		os.Getenv(constants.EnvGitHubRepository),
-		getEnvWithDefault(constants.EnvDefaultBranch, constants.DefaultBranch),
-		rootPatterns,
-		assignmentPatterns,
-		isDryRun(getEnvWithDefault(constants.EnvDryRun, constants.DefaultDryRun)),
-	)
+	return &Config{
+		gitHubToken:                os.Getenv(constants.EnvGitHubToken),
+		repositoryName:             os.Getenv(constants.EnvGitHubRepository),
+		defaultBranch:              getEnvWithDefault(constants.EnvDefaultBranch, constants.DefaultBranch),
+		rootPatternProcessor:       regex.NewFromCommaSeparated(getEnvWithDefault(constants.EnvAssignmentsRootRegex, constants.DefaultAssignmentsRootRegex)),
+		assignmentPatternProcessor: regex.NewFromCommaSeparated(getEnvWithDefault(constants.EnvAssignmentRegex, constants.DefaultAssignmentRegex)),
+		dryRun:                     isDryRun(getEnvWithDefault(constants.EnvDryRun, constants.DefaultDryRun)),
+	}
 }
 
 // Creator is the main Assignment PR Creator
@@ -344,8 +339,8 @@ This pull request contains the setup for the assignment located at
 `, assignmentPath)
 }
 
-// BranchToProcess represents a branch that needs processing
-type BranchToProcess struct {
+// branchToProcess represents a branch that needs processing
+type branchToProcess struct {
 	AssignmentPath string
 	BranchName     string
 }
@@ -398,7 +393,7 @@ func (c *Creator) processAssignments() error {
 
 	// Phase 2: Process all assignments locally
 	fmt.Println("\n=== Phase 2: Local processing ===")
-	var branchesToProcess []BranchToProcess
+	var branchesToProcess []branchToProcess
 
 	for _, assignmentInfo := range assignments {
 		assignmentPath := assignmentInfo.Path
@@ -430,7 +425,7 @@ func (c *Creator) processAssignments() error {
 				continue
 			}
 
-			branchesToProcess = append(branchesToProcess, BranchToProcess{
+			branchesToProcess = append(branchesToProcess, branchToProcess{
 				AssignmentPath: assignmentPath,
 				BranchName:     branchName,
 			})
@@ -440,7 +435,7 @@ func (c *Creator) processAssignments() error {
 			continue
 		} else if branchExists && !prHasExisted {
 			fmt.Printf("Branch '%s' already exists locally but no PR has ever existed, will create PR\n", branchName)
-			branchesToProcess = append(branchesToProcess, BranchToProcess{
+			branchesToProcess = append(branchesToProcess, branchToProcess{
 				AssignmentPath: assignmentPath,
 				BranchName:     branchName,
 			})
@@ -546,8 +541,8 @@ func (c *Creator) Run() error {
 		fmt.Println("🔄 LIVE MODE: Using local git operations with atomic remote push")
 	}
 	fmt.Printf("Repository: %s\n", c.config.repositoryName)
-	fmt.Printf("Assignments root regex: %s\n", c.config.rootPatternProcessor.GetPatterns())
-	fmt.Printf("Assignment regex: %s\n", c.config.assignmentPatternProcessor.GetPatterns())
+	fmt.Printf("Assignments root regex: %s\n", c.config.rootPatternProcessor.Patterns())
+	fmt.Printf("Assignment regex: %s\n", c.config.assignmentPatternProcessor.Patterns())
 	fmt.Printf("Default branch: %s\n", c.config.defaultBranch)
 	fmt.Printf("Dry run mode: %t\n", c.config.dryRun)
 
