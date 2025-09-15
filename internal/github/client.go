@@ -167,3 +167,38 @@ func (c *Client) MergePullRequest(prNumber, title string) error {
 
 	return nil
 }
+
+// ReopenPullRequest reopens a closed pull request
+func (c *Client) ReopenPullRequest(prNumber, title string) error {
+	if c.dryRun {
+		fmt.Printf("[DRY RUN] Would reopen pull request %s\n", prNumber)
+		return nil
+	}
+
+	// Convert PR number string to integer (remove # prefix if present)
+	prNum, err := strconv.Atoi(strings.TrimPrefix(prNumber, "#"))
+	if err != nil {
+		return fmt.Errorf("invalid PR number format '%s': %w", prNumber, err)
+	}
+
+	// Parse repository name
+	parts := strings.Split(c.repositoryName, "/")
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid repository name format: %s", c.repositoryName)
+	}
+	owner, repo := parts[0], parts[1]
+
+	// Reopen the pull request by setting state to "open"
+	state := "open"
+	prUpdate := &github.PullRequest{
+		State: &state,
+	}
+
+	_, _, err = c.client.PullRequests.Edit(c.ctx, owner, repo, prNum, prUpdate)
+	if err != nil {
+		return fmt.Errorf("error reopening pull request %s: %w", prNumber, err)
+	}
+
+	fmt.Printf("✅ Reopened pull request %s\n", prNumber)
+	return nil
+}

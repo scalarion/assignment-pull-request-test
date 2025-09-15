@@ -429,10 +429,9 @@ func (c *Creator) processAssignments() error {
 			}
 		}
 
-		// Phase 5: Sync all branches with main
-		fmt.Printf("\n=== Phase 5: Syncing all branches with main ===\n")
-		if err := c.syncAllBranchesWithMain(); err != nil {
-			fmt.Printf("❌ Failed to sync branches with main: %v\n", err)
+		// Phase 5: Merge and reopen all created pull requests
+		if err := c.mergeAndReopenAllPullRequests(); err != nil {
+			fmt.Printf("❌ Failed to merge and reopen pull requests: %v\n", err)
 			return err
 		}
 	} else {
@@ -443,64 +442,38 @@ func (c *Creator) processAssignments() error {
 	return nil
 }
 
-// mergeAllBranchesToMain merges all created branches to main
-func (c *Creator) mergeAllBranchesToMain() error {
-	if len(c.createdBranches) == 0 {
-		fmt.Println("No branches to merge")
+// mergeAndReopenAllPullRequests merges all created PRs and then reopens them
+func (c *Creator) mergeAndReopenAllPullRequests() error {
+	if len(c.createdPullRequests) == 0 {
+		fmt.Println("No pull requests to merge and reopen")
 		return nil
 	}
 
-	fmt.Printf("\n=== Phase 5: Merging all branches to main ===\n")
+	fmt.Printf("\n=== Phase 5: Merging and reopening pull requests ===\n")
 
-	// Pull latest changes from remote main first
-	if err := c.gitOps.PullMainFromRemote(); err != nil {
-		fmt.Printf("Warning: failed to pull latest main: %v\n", err)
-	}
-
-	// Merge each branch into main
-	for _, branchName := range c.createdBranches {
-		fmt.Printf("Merging branch '%s' into main...\n", branchName)
-		if err := c.gitOps.MergeBranchToMain(branchName); err != nil {
-			fmt.Printf("❌ Failed to merge branch '%s': %v\n", branchName, err)
+	// First, merge all the pull requests
+	fmt.Printf("Merging %d pull requests...\n", len(c.createdPullRequests))
+	for _, pr := range c.createdPullRequests {
+		fmt.Printf("Merging pull request %s: %s...\n", pr.Number, pr.Title)
+		if err := c.githubClient.MergePullRequest(pr.Number, pr.Title); err != nil {
+			fmt.Printf("❌ Failed to merge PR %s: %v\n", pr.Number, err)
 			continue
 		}
-		fmt.Printf("✅ Merged branch '%s' into main\n", branchName)
+		fmt.Printf("✅ Merged pull request %s\n", pr.Number)
 	}
 
-	// Push updated main to remote
-	if err := c.gitOps.PushBranch("main"); err != nil {
-		return fmt.Errorf("failed to push updated main: %w", err)
-	}
-
-	fmt.Printf("✅ All branches merged to main and pushed to remote\n")
-	return nil
-}
-
-// syncAllBranchesWithMain updates all branches with the latest main
-func (c *Creator) syncAllBranchesWithMain() error {
-	if len(c.createdBranches) == 0 {
-		fmt.Println("No branches to sync")
-		return nil
-	}
-
-	fmt.Printf("\n=== Phase 6: Syncing all branches with main ===\n")
-
-	// Update each branch with the latest main
-	for _, branchName := range c.createdBranches {
-		fmt.Printf("Updating branch '%s' with latest main...\n", branchName)
-		if err := c.gitOps.UpdateBranchFromMain(branchName); err != nil {
-			fmt.Printf("❌ Failed to update branch '%s': %v\n", branchName, err)
+	// Then, reopen all the pull requests
+	fmt.Printf("Reopening %d pull requests...\n", len(c.createdPullRequests))
+	for _, pr := range c.createdPullRequests {
+		fmt.Printf("Reopening pull request %s: %s...\n", pr.Number, pr.Title)
+		if err := c.githubClient.ReopenPullRequest(pr.Number, pr.Title); err != nil {
+			fmt.Printf("❌ Failed to reopen PR %s: %v\n", pr.Number, err)
 			continue
 		}
-		fmt.Printf("✅ Updated branch '%s' with latest main\n", branchName)
+		fmt.Printf("✅ Reopened pull request %s\n", pr.Number)
 	}
 
-	// Push all updated branches to remote
-	if err := c.gitOps.PushAllBranches(); err != nil {
-		return fmt.Errorf("failed to push updated branches: %w", err)
-	}
-
-	fmt.Printf("✅ All branches synchronized with main and pushed to remote\n")
+	fmt.Printf("✅ Successfully merged and reopened %d pull requests\n", len(c.createdPullRequests))
 	return nil
 }
 
