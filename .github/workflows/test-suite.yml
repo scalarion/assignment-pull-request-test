@@ -7,33 +7,14 @@ on:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
-  test-linux:
-    name: Test Go on Linux
-    runs-on: ubuntu-latest
-    # Note: Tests run only on Linux to avoid platform-specific path issues
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
-
-      - name: Set up Go
-        uses: actions/setup-go@v6
-        with:
-          go-version-file: go.mod
-
-      - name: Install dependencies
-        run: go mod download
-
-      - name: Run go vet
-        run: go vet ./...
-
-      - name: Run tests
-        run: go test ./...
-
-      - name: Build binary
-        run: go build -o assignment-pr-creator ./cmd/assignment-pr-creator
-
   test-quality:
     name: Code Quality and Security
     runs-on: ubuntu-latest
@@ -46,18 +27,26 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
+          cache: true
+
+      - id: go
+        name: Resolve Go version
+        run: echo "go_version=$(go version)" >> $GITHUB_OUTPUT
 
       - name: Install dependencies
         run: go mod download
 
-      - name: Install golangci-lint
-        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.4
+          args: --timeout=5m
 
       - name: Create coverage directory
         run: mkdir -p coverage
 
       - name: Run comprehensive sanity checks
-        run: make check
+        run: make build check
 
       - name: Upload coverage reports
         uses: actions/upload-artifact@v4
@@ -66,9 +55,22 @@ jobs:
           path: coverage/
           retention-days: 7
 
-  test-action-dry-run:
-    name: Test Action (Dry Run)
-    runs-on: ubuntu-latest
+  test-cross-platform:
+    name: Cross-Platform Testing
+    runs-on: ${{ matrix.os }}
+    needs: test-quality
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            platform: Linux
+          - os: windows-latest
+            platform: Windows
+          - os: macos-latest
+            platform: macOS
+
     permissions:
       contents: read
 
@@ -80,27 +82,33 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
+          cache: true
 
-      - name: Install dependencies
-        run: go mod download
+      - name: Run tests (${{ matrix.platform }})
+        run: |
+          go mod download
+          make test
 
-      - name: Install golangci-lint
-        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+      - name: Test action with dry-run (${{ matrix.platform }})
+        uses: ./
+        with:
+          github-token: fake-token
+          assignment-regex: >
+            ^test/fixtures/assignments/(assignment-[\d]+)$,
+            ^test/fixtures/bootcamp/(.+/assignment-[\w\-]+)$,
+            ^test/fixtures/courses/(.+/assignment-[\w\-]+)$,
+            ^test/fixtures/homework/(hw-[\d]+)$,
+            ^test/fixtures/homework/(lab-[\d]+)$,
+          default-branch: main
+          dry-run: "yes"
 
-      - name: Create coverage directory
-        run: mkdir -p coverage
-
-      - name: Run quick sanity checks
-        run: make check-quick
-
-      - name: Build application
-        run: make build
-
-      - name: Test dry-run mode
-        run: make run
-        env:
-          GITHUB_TOKEN: "fake-token"
-          GITHUB_REPOSITORY: "test/repo"
-          ASSIGNMENT_REGEX: "^test/fixtures/(?:assignments|homework|labs)/(?P<name>[^/]+)$"
-          DEFAULT_BRANCH: "main"
-          DRY_RUN: "true"
+      # Verify binary was created with correct extension
+      - name: Verify binary created by action (${{ matrix.platform }})
+        shell: bash
+        run: |
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            test -f "./bin/assignment-pr-creator.exe" || (echo "Windows binary not found" && exit 1)
+          else
+            test -f "./bin/assignment-pr-creator" || (echo "Unix binary not found" && exit 1)
+          fi
+          echo "✅ Binary verification passed for ${{ matrix.platform }}"

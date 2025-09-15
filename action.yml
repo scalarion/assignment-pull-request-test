@@ -1,43 +1,42 @@
-name: "Assignment Pull Request Creator"
-description: "Scans for assignment folders and creates a pull request for each assignment. Supports dry-run mode to simulate operations without making changes. Designed to run on Linux runners only."
-author: "majikmate"
-
-# Platform requirements
-runs-on: ubuntu-latest
+name: Assignment Pull Request Creator
+description: Scans for assignment folders and creates a pull request for each assignment. Supports dry-run mode to simulate operations without making changes.
+author: majikmate
 
 inputs:
   default-branch:
-    description: "Default branch to create pull requests against"
+    description: Default branch to create pull requests against
     required: false
-    default: "main"
+    default: main
   assignment-regex:
-    description: "Comma-separated list of regular expressions to match assignment paths and extract branch names using capturing groups. Use (?P<name>...) for named groups or (...) for unnamed groups. Named groups take priority when both are present. Use \\, to escape literal commas within patterns."
+    description: Comma-separated list of regular expressions to match assignment paths and extract branch names using capturing groups. Use (?P<name>...) for named groups or (...) for unnamed groups. Named groups take priority when both are present. Use \\, to escape literal commas within patterns.
     required: false
-    default: '^(?P<branch>assignment-\d+)$'
+    default: ^assignments/(assignment-\d+)$
   github-token:
-    description: "GitHub token for API access"
+    description: GitHub token for API access
     required: true
     default: ${{ secrets.GITHUB_TOKEN }}
   dry-run:
-    description: "Simulate operations without actually creating branches or pull requests"
+    description: Simulate operations without actually creating branches or pull requests
     required: false
-    default: "false"
+    default: "yes"
 
 outputs:
   created-branches:
-    description: "List of branches created"
+    description: List of branches created
     value: ${{ steps.create-assignments.outputs.created-branches }}
   created-pull-requests:
-    description: "List of pull requests created"
+    description: List of pull requests created
     value: ${{ steps.create-assignments.outputs.created-pull-requests }}
 
 runs:
-  using: "composite"
+  using: composite
   steps:
     - name: Setup Go
       uses: actions/setup-go@v6
       with:
         go-version-file: ${{ github.action_path }}/go.mod
+        cache: true
+        cache-dependency-path: ${{ github.action_path }}/go.sum
 
     - name: Build assignment-pr-creator
       shell: bash
@@ -57,5 +56,5 @@ runs:
       run: ${{ github.action_path }}/bin/assignment-pr-creator
 
 branding:
-  icon: "git-pull-request"
-  color: "blue"
+  icon: git-pull-request
+  color: blue
