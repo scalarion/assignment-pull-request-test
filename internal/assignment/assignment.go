@@ -46,37 +46,54 @@ func NewProcessor(repositoryRoot string, assignmentProcessor *regex.Processor) (
 
 // ProcessAssignments discovers all assignments and returns assignment info with unique branch names
 func (ap *Processor) ProcessAssignments() ([]Info, error) {
+	fmt.Printf("🎯 Processing assignments for branch matching...\n")
+	
 	// Find all assignment paths
 	assignments, err := ap.findAssignments()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error finding assignments: %w", err)
 	}
 
 	if len(assignments) == 0 {
-		return []Info{}, nil
+		fmt.Printf("⚠️  No assignment folders found\n")
+		return nil, nil
 	}
 
-	// Convert to Info with branch names
-	var assignmentInfos []Info
-	for _, assignmentPath := range assignments {
-		branchName, matched := ap.extractBranchNameFromPath(assignmentPath)
-		if !matched {
-			// Skip assignments that don't match any pattern
-			continue
+	fmt.Printf("Debug: Found %d assignment folder(s), extracting branch names...\n", len(assignments))
+
+	var results []Info
+	branchCounts := make(map[string]int)
+
+	for _, assignment := range assignments {
+		fmt.Printf("  Processing assignment: %s\n", assignment)
+		branchName, found := ap.extractBranchNameFromPath(assignment)
+		if found {
+			branchCounts[branchName]++
+			uniqueBranchName := branchName
+			if branchCounts[branchName] > 1 {
+				uniqueBranchName = fmt.Sprintf("%s-%d", branchName, branchCounts[branchName])
+			}
+			fmt.Printf("    ✅ Branch name: %s\n", uniqueBranchName)
+			results = append(results, Info{
+				Path:       assignment,
+				BranchName: uniqueBranchName,
+			})
+		} else {
+			fmt.Printf("    ⚠️  Could not extract branch name\n")
 		}
-
-		assignmentInfos = append(assignmentInfos, Info{
-			Path:       assignmentPath,
-			BranchName: branchName,
-		})
 	}
 
-	// Validate branch name uniqueness
-	if err := ap.validateBranchNameUniqueness(assignmentInfos); err != nil {
-		return nil, err
+	fmt.Printf("📊 Branch extraction summary:\n")
+	fmt.Printf("  - Assignments processed: %d\n", len(assignments))
+	fmt.Printf("  - Branch names extracted: %d\n", len(results))
+	if len(results) > 0 {
+		fmt.Printf("  - Available branches:\n")
+		for _, result := range results {
+			fmt.Printf("    * %s (from %s)\n", result.BranchName, result.Path)
+		}
 	}
 
-	return assignmentInfos, nil
+	return results, nil
 }
 
 // validateBranchNameUniqueness checks that all assignments generate unique branch names
@@ -105,6 +122,7 @@ func (ap *Processor) validateBranchNameUniqueness(assignments []Info) error {
 
 // findAssignments finds all assignment folders matching the processor's regex patterns
 func (ap *Processor) findAssignments() ([]string, error) {
+	fmt.Printf("📁 Searching for assignment folders...\n")
 	var assignments []string
 
 	// Determine the root directory to walk
@@ -112,9 +130,20 @@ func (ap *Processor) findAssignments() ([]string, error) {
 	if rootDir == "" {
 		rootDir = "."
 	}
+	fmt.Printf("Debug: Walking directory tree from: %s\n", rootDir)
+
+	// Get compiled patterns for debugging
+	assignmentPatterns, err := ap.assignmentPattern.Compiled()
+	if err != nil {
+		return nil, fmt.Errorf("failed to compile assignment patterns: %w", err)
+	}
+	fmt.Printf("Debug: Using %d compiled assignment patterns\n", len(assignmentPatterns))
+
+	checkedDirs := 0
+	matchedDirs := 0
 
 	// Walk the entire directory tree and check each directory against assignment patterns
-	err := filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
+	err = filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -138,19 +167,21 @@ func (ap *Processor) findAssignments() ([]string, error) {
 			return nil
 		}
 
-		// Check if this directory matches any assignment pattern
-		assignmentPatterns, err := ap.assignmentPattern.Compiled()
-		if err != nil {
-			return nil
-		}
+		checkedDirs++
 		
 		// Normalize path to use forward slashes for pattern matching
 		normalizedPath := filepath.ToSlash(path)
+		fmt.Printf("  Checking directory: %s\n", normalizedPath)
 		
-		for _, assignmentPattern := range assignmentPatterns {
+		for i, assignmentPattern := range assignmentPatterns {
+			fmt.Printf("    Testing pattern %d: %s\n", i+1, assignmentPattern.String())
 			if assignmentPattern.MatchString(normalizedPath) {
 				assignments = append(assignments, path)
+				matchedDirs++
+				fmt.Printf("    ✅ MATCH! Added: %s\n", path)
 				break // Don't check other patterns for this path
+			} else {
+				fmt.Printf("    - No match\n")
 			}
 		}
 
@@ -164,6 +195,11 @@ func (ap *Processor) findAssignments() ([]string, error) {
 	// Sort assignments
 	sort.Strings(assignments)
 
+	fmt.Printf("📊 Assignment discovery summary:\n")
+	fmt.Printf("  - Directories checked: %d\n", checkedDirs)
+	fmt.Printf("  - Assignments found: %d\n", matchedDirs)
+	fmt.Printf("  - Assignment paths: %v\n", assignments)
+
 	return assignments, nil
 }
 
@@ -174,22 +210,29 @@ func (ap *Processor) GetAssignmentRegexStrings() []string {
 
 // extractBranchNameFromPath extracts a branch name from a path using the processor's compiled patterns
 func (ap *Processor) extractBranchNameFromPath(assignmentPath string) (string, bool) {
+	fmt.Printf("    Debug: Extracting branch name from: %s\n", assignmentPath)
+	
 	assignmentPatterns, err := ap.assignmentPattern.Compiled()
 	if err != nil {
+		fmt.Printf("    Error: Failed to compile patterns: %v\n", err)
 		return "", false
 	}
 
 	// Normalize path to use forward slashes for pattern matching
 	normalizedPath := filepath.ToSlash(assignmentPath)
+	fmt.Printf("    Debug: Normalized path: %s\n", normalizedPath)
 
-	for _, pattern := range assignmentPatterns {
+	for i, pattern := range assignmentPatterns {
 		if pattern == nil {
 			continue
 		}
 
+		fmt.Printf("    Debug: Testing pattern %d: %s\n", i+1, pattern.String())
 		matches := pattern.FindStringSubmatch(normalizedPath)
 		if matches != nil {
+			fmt.Printf("    Debug: Pattern matched! Found %d groups: %v\n", len(matches), matches)
 			names := pattern.SubexpNames()
+			fmt.Printf("    Debug: Group names: %v\n", names)
 			var branchParts []string
 
 			// Collect named groups and their values, sorted alphabetically by name
@@ -202,6 +245,7 @@ func (ap *Processor) extractBranchNameFromPath(assignmentPath string) (string, b
 					if part != "" {
 						namedGroups[name] = part
 						namedGroupNames = append(namedGroupNames, name)
+						fmt.Printf("    Debug: Named group '%s' = '%s'\n", name, part)
 					}
 				}
 			}
@@ -228,25 +272,32 @@ func (ap *Processor) extractBranchNameFromPath(assignmentPath string) (string, b
 					part := strings.TrimSpace(matches[i])
 					if part != "" {
 						unnamedParts = append(unnamedParts, part)
+						fmt.Printf("    Debug: Unnamed group %d = '%s'\n", i, part)
 					}
 				}
 			}
 
 			// Add unnamed groups after named groups
 			branchParts = append(branchParts, unnamedParts...)
+			fmt.Printf("    Debug: All branch parts: %v\n", branchParts)
 
 			if len(branchParts) == 0 {
+				fmt.Printf("    Debug: No branch parts found, continuing to next pattern\n")
 				continue
 			}
 
 			// Combine parts and sanitize
 			branchName := strings.Join(branchParts, "-")
 			branchName = ap.sanitizeBranchName(branchName)
+			fmt.Printf("    Debug: Final branch name: '%s'\n", branchName)
 
 			return branchName, true
+		} else {
+			fmt.Printf("    Debug: Pattern did not match\n")
 		}
 	}
 
+	fmt.Printf("    Debug: No patterns matched\n")
 	return "", false
 }
 
