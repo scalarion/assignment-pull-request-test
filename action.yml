@@ -37,17 +37,7 @@ runs:
         cache: true
         cache-dependency-path: ${{ github.action_path }}/go.sum
 
-    - name: Build assignment-pr-creator
-      shell: bash
-      run: |
-        cd "${{ github.action_path }}"
-        if [[ "${{ runner.os }}" == "Windows" ]]; then
-          go build -o "bin/assignment-pr-creator.exe" cmd/assignment-pr-creator/main.go
-        else
-          go build -o "bin/assignment-pr-creator" cmd/assignment-pr-creator/main.go
-        fi
-
-    - name: Create assignment pull requests
+    - name: Run assignment-pr-creator
       id: create-assignments
       shell: bash
       working-directory: ${{ github.workspace }}
@@ -57,12 +47,7 @@ runs:
         GITHUB_REPOSITORY: ${{ github.repository }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
         DRY_RUN: ${{ inputs.dry-run }}
-      run: |
-        if [[ "${{ runner.os }}" == "Windows" ]]; then
-          "${{ github.action_path }}/bin/assignment-pr-creator.exe"
-        else
-          "${{ github.action_path }}/bin/assignment-pr-creator"
-        fi
+      run: go run "${{ github.action_path }}/cmd/assignment-pr-creator/main.go"
 
 branding:
   icon: git-pull-request
