@@ -97,20 +97,26 @@ func (p *Processor) rewriteImageLinks(content string) string {
 			return match
 		}
 
-		// Check if it's an absolute path (cross-platform)
-		if filepath.IsAbs(imagePath) {
-			return match
-		}
-
 		// Skip if it's already an absolute path from repo root (Unix-style in markdown)
 		if strings.HasPrefix(imagePath, "/") {
 			return match
 		}
 
+		// Check if it's an absolute path (cross-platform)
+		if filepath.IsAbs(imagePath) {
+			return match
+		}
+
 		// Rewrite relative path to be relative to repo root
+		// Join the assignment path with the relative image path
 		rewrittenPath := filepath.Join(p.assignmentPath, imagePath)
-		// Convert to forward slashes for web compatibility (Git/GitHub always uses forward slashes)
+		// Ensure we use forward slashes for GitHub compatibility
 		rewrittenPath = filepath.ToSlash(rewrittenPath)
+		
+		// Make sure the path starts from repo root (add leading slash if needed)
+		if !strings.HasPrefix(rewrittenPath, "/") {
+			rewrittenPath = "/" + rewrittenPath
+		}
 
 		return fmt.Sprintf("![%s](%s)", altText, rewrittenPath)
 	})
