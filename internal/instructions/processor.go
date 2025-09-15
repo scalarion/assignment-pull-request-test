@@ -12,12 +12,22 @@ import (
 
 // Processor handles reading and processing instruction files for a specific assignment
 type Processor struct {
+	branch         string
 	assignmentPath string
 }
 
 // New creates a new instructions processor for the given assignment path
 func New(assignmentPath string) *Processor {
 	return &Processor{
+		branch:         "main", // Default fallback
+		assignmentPath: assignmentPath,
+	}
+}
+
+// NewWithDefaults creates a new instructions processor with branch and assignment path
+func NewWithDefaults(branch, assignmentPath string) *Processor {
+	return &Processor{
+		branch:         branch,
 		assignmentPath: assignmentPath,
 	}
 }
@@ -107,22 +117,19 @@ func (p *Processor) rewriteImageLinks(content string) string {
 			return match
 		}
 
-		// Rewrite relative path to be relative to repo root
+		// Rewrite relative path for GitHub pull requests and issues
 		// Join the assignment path with the relative image path
 		rewrittenPath := filepath.Join(p.assignmentPath, imagePath)
 		// Ensure we use forward slashes for GitHub compatibility
 		rewrittenPath = filepath.ToSlash(rewrittenPath)
-		
-		// Make sure the path starts from repo root (add leading slash if needed)
-		if !strings.HasPrefix(rewrittenPath, "/") {
-			rewrittenPath = "/" + rewrittenPath
-		}
+
+		// For pull requests and issues, use blob URL format with ?raw=true
+		// This ensures images display correctly in PR descriptions
+		rewrittenPath = fmt.Sprintf("../blob/%s/%s?raw=true", p.branch, rewrittenPath)
 
 		return fmt.Sprintf("![%s](%s)", altText, rewrittenPath)
 	})
-}
-
-// createGenericPullRequestBody creates the default generic pull request body
+} // createGenericPullRequestBody creates the default generic pull request body
 func (p *Processor) createGenericPullRequestBody() string {
 	return fmt.Sprintf(`## Assignment Pull Request
 

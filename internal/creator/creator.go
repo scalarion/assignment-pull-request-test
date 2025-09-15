@@ -210,8 +210,7 @@ Please add your submission guidelines here.
 
 // createPullRequest creates a pull request for the assignment branch using GitHub API
 func (c *Creator) createPullRequest(assignmentPath, branchName string) error {
-	caser := cases.Title(language.English)
-	title := fmt.Sprintf("Assignment: %s", caser.String(strings.ReplaceAll(assignmentPath, string(filepath.Separator), " - ")))
+	title := branchName
 
 	// Try to read instructions.md file for PR body content
 	body, err := c.createPullRequestBody(assignmentPath)
@@ -233,7 +232,7 @@ func (c *Creator) createPullRequest(assignmentPath, branchName string) error {
 
 // createPullRequestBody creates the pull request body content using the instructions processor
 func (c *Creator) createPullRequestBody(assignmentPath string) (string, error) {
-	instructionsProcessor := instructions.New(assignmentPath)
+	instructionsProcessor := instructions.NewWithDefaults(c.config.defaultBranch, assignmentPath)
 	return instructionsProcessor.CreatePullRequestBody()
 }
 
