@@ -59,7 +59,7 @@ jobs:
   test-cross-platform:
     name: Cross-Platform Testing
     runs-on: ${{ matrix.os }}
-    needs: test-quality
+    # needs: test-quality
     strategy:
       fail-fast: false
       matrix:
