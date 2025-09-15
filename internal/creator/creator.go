@@ -428,52 +428,11 @@ func (c *Creator) processAssignments() error {
 				}
 			}
 		}
-
-		// Phase 5: Merge and reopen all created pull requests
-		if err := c.mergeAndReopenAllPullRequests(); err != nil {
-			fmt.Printf("❌ Failed to merge and reopen pull requests: %v\n", err)
-			return err
-		}
 	} else {
 		fmt.Println("\n=== No new assignments to process ===")
 		fmt.Println("All assignments already have PRs")
 	}
 
-	return nil
-}
-
-// mergeAndReopenAllPullRequests merges all created PRs and then reopens them
-func (c *Creator) mergeAndReopenAllPullRequests() error {
-	if len(c.createdPullRequests) == 0 {
-		fmt.Println("No pull requests to merge and reopen")
-		return nil
-	}
-
-	fmt.Printf("\n=== Phase 5: Merging and reopening pull requests ===\n")
-
-	// First, merge all the pull requests
-	fmt.Printf("Merging %d pull requests...\n", len(c.createdPullRequests))
-	for _, pr := range c.createdPullRequests {
-		fmt.Printf("Merging pull request %s: %s...\n", pr.Number, pr.Title)
-		if err := c.githubClient.MergePullRequest(pr.Number, pr.Title); err != nil {
-			fmt.Printf("❌ Failed to merge PR %s: %v\n", pr.Number, err)
-			continue
-		}
-		fmt.Printf("✅ Merged pull request %s\n", pr.Number)
-	}
-
-	// Then, reopen all the pull requests
-	fmt.Printf("Reopening %d pull requests...\n", len(c.createdPullRequests))
-	for _, pr := range c.createdPullRequests {
-		fmt.Printf("Reopening pull request %s: %s...\n", pr.Number, pr.Title)
-		if err := c.githubClient.ReopenPullRequest(pr.Number, pr.Title); err != nil {
-			fmt.Printf("❌ Failed to reopen PR %s: %v\n", pr.Number, err)
-			continue
-		}
-		fmt.Printf("✅ Reopened pull request %s\n", pr.Number)
-	}
-
-	fmt.Printf("✅ Successfully merged and reopened %d pull requests\n", len(c.createdPullRequests))
 	return nil
 }
 
