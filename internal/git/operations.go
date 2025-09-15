@@ -178,19 +178,23 @@ func (o *Operations) GetRemoteBranches(defaultBranch string) error {
 
 	for _, line := range strings.Split(output, "\n") {
 		line = strings.TrimSpace(line)
-		if line != "" && !strings.HasSuffix(line, "/HEAD") {
-			// Format: "  origin/branch-name"
-			if strings.HasPrefix(line, "origin/") {
-				branchName := strings.TrimPrefix(line, "origin/")
-				// Skip default branch as it already exists locally
-				if branchName != defaultBranch {
-					if err := o.commander.RunCommand(
-						fmt.Sprintf("git checkout -b %s %s", branchName, line),
-						fmt.Sprintf("Create local tracking branch for %s", branchName),
-					); err != nil {
-						// Log error but continue with other branches
-						fmt.Printf("Warning: failed to create tracking branch for %s: %v\n", branchName, err)
-					}
+		
+		// Skip empty lines, HEAD references, and symbolic references
+		if line == "" || strings.HasSuffix(line, "/HEAD") || strings.Contains(line, "HEAD ->") || strings.Contains(line, "->") {
+			continue
+		}
+		
+		// Format: "  origin/branch-name"
+		if strings.HasPrefix(line, "origin/") {
+			branchName := strings.TrimPrefix(line, "origin/")
+			// Skip default branch as it already exists locally
+			if branchName != defaultBranch && branchName != "" {
+				if err := o.commander.RunCommand(
+					fmt.Sprintf("git checkout -b %s %s", branchName, line),
+					fmt.Sprintf("Create local tracking branch for %s", branchName),
+				); err != nil {
+					// Log error but continue with other branches
+					fmt.Printf("Warning: failed to create tracking branch for %s: %v\n", branchName, err)
 				}
 			}
 		}
