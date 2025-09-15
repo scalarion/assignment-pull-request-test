@@ -72,19 +72,16 @@ func (p *Processor) findReadmeFile() string {
 
 // readAndProcessReadme reads the README file and processes image links
 func (p *Processor) readAndProcessReadme(readmePath string) (string, error) {
+	// Read the README file content
 	content, err := os.ReadFile(readmePath)
 	if err != nil {
 		return "", fmt.Errorf("failed to read README file: %w", err)
 	}
 
+	// Process image links in the content
 	processedContent := p.rewriteImageLinks(string(content))
 
-	// Wrap the content in a nice pull request format
-	wrappedContent := fmt.Sprintf(`%s
-<sub>*Original content from: %s*</sub>
-`, processedContent, filepath.Base(readmePath))
-
-	return wrappedContent, nil
+	return processedContent, nil
 }
 
 // rewriteImageLinks rewrites relative image links to reference the assignment path
@@ -148,9 +145,7 @@ This pull request contains the setup for the assignment located at
 3. Students can fork this repository and work on their submissions
 
 ---
-
-*This pull request was automatically created by the Assignment Pull*
-*Request Creator action.*
+<sub>*Created by the [Assignment Pull Request](https://github.com/majikmate/assignment-pull-request) action.*</sub>
 `, p.assignmentPath)
 }
 
