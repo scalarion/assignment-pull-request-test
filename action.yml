@@ -47,8 +47,7 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github-token }}
         DRY_RUN: ${{ inputs.dry-run }}
       run: |
-        cd "${{ github.workspace }}"
-        go run "${{ github.action_path }}/cmd/assignment-pr-creator"
+        go -C "${{ github.action_path }}" run ./cmd/assignment-pr-creator
 
 branding:
   icon: git-pull-request

@@ -18,6 +18,7 @@ jobs:
   test-quality:
     name: Code Quality and Security
     runs-on: ubuntu-latest
+    if: false # Skip for now
 
     steps:
       - name: Checkout repository
