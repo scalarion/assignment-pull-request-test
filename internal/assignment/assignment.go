@@ -251,12 +251,6 @@ func hasCapturingGroups(regex *regexp.Regexp) bool {
 	return len(names) > 1
 }
 
-// HasCapturingGroups checks if a compiled regex pattern has at least one capturing group (named or unnamed)
-// This is a public wrapper for the internal hasCapturingGroups function used by tests
-func HasCapturingGroups(regex *regexp.Regexp) bool {
-	return hasCapturingGroups(regex)
-}
-
 // sanitizeBranchName sanitizes a branch name to match Creator's original behavior
 // Only sanitizes spaces and slashes, preserves other special characters
 func (ap *Processor) sanitizeBranchName(name string) string {
