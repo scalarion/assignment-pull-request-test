@@ -202,7 +202,7 @@ func (c *Creator) createPullRequest(assignmentPath, branchName string) error {
 	})
 
 	// Add PR link to README after the branch has been pushed and merge the PR
-	if err := c.addPullRequestLinkAfterPush(assignmentPath, prNumber); err != nil {
+	if err := c.addPullRequestLinkAfterPush(assignmentPath, branchName, prNumber); err != nil {
 		fmt.Printf("Warning: failed to add PR link after push for %s: %v\n", prNumber, err)
 		// Continue with merge even if PR link addition fails
 	}
@@ -217,16 +217,21 @@ func (c *Creator) createPullRequest(assignmentPath, branchName string) error {
 }
 
 // addPullRequestLinkAfterPush adds PR link to README after the branch has been pushed
-func (c *Creator) addPullRequestLinkAfterPush(assignmentPath, prNumber string) error {
+func (c *Creator) addPullRequestLinkAfterPush(assignmentPath, branchName, prNumber string) error {
+	// First, switch to the correct branch
+	if err := c.gitOps.SwitchToBranch(branchName); err != nil {
+		return fmt.Errorf("failed to switch to branch %s: %w", branchName, err)
+	}
+
 	// Add PR link to the top of the README
 	if err := c.addPullRequestLinkToReadme(assignmentPath, prNumber); err != nil {
 		fmt.Printf("Warning: failed to add PR link to README: %v\n", err)
 		return err
 	}
 
-	// Push the updated README immediately
-	if err := c.gitOps.PushAllBranches(); err != nil {
-		fmt.Printf("Warning: failed to push PR link update: %v\n", err)
+	// Push only the specific branch to avoid conflicts with main
+	if err := c.gitOps.PushBranch(branchName); err != nil {
+		fmt.Printf("Warning: failed to push branch %s with PR link update: %v\n", branchName, err)
 		return err
 	}
 

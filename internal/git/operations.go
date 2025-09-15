@@ -125,6 +125,14 @@ func (o *Operations) PushAllBranches() error {
 	)
 }
 
+// PushBranch pushes a specific branch to remote
+func (o *Operations) PushBranch(branchName string) error {
+	return o.commander.RunCommand(
+		fmt.Sprintf("git push origin %s", branchName),
+		fmt.Sprintf("Push branch '%s' to remote", branchName),
+	)
+}
+
 // GetLocalBranches returns a map of local branch names
 func (o *Operations) GetLocalBranches() (map[string]bool, error) {
 	branches := make(map[string]bool)
@@ -163,7 +171,7 @@ func (o *Operations) GetLocalBranches() (map[string]bool, error) {
 // GetRemoteBranches gets list of remote branch names without creating local tracking branches
 func (o *Operations) GetRemoteBranches(defaultBranch string) (map[string]bool, error) {
 	remoteBranches := make(map[string]bool)
-	
+
 	if o.commander.dryRun {
 		fmt.Println("[DRY RUN] Would check remote branches with command:")
 		fmt.Println("  git branch -r")
@@ -182,12 +190,12 @@ func (o *Operations) GetRemoteBranches(defaultBranch string) (map[string]bool, e
 
 	for _, line := range strings.Split(output, "\n") {
 		line = strings.TrimSpace(line)
-		
+
 		// Skip empty lines, HEAD references, and symbolic references
 		if line == "" || strings.HasSuffix(line, "/HEAD") || strings.Contains(line, "HEAD ->") || strings.Contains(line, "->") {
 			continue
 		}
-		
+
 		// Format: "  origin/branch-name"
 		if branchName, ok := strings.CutPrefix(line, "origin/"); ok {
 			// Skip default branch and empty names
