@@ -90,7 +90,7 @@ jobs:
           make test
 
       - name: Test action with dry-run (${{ matrix.platform }})
-        uses: ./
+        uses: majikmate/assignment-pr-creator@main
         with:
           github-token: fake-token
           assignment-regex: >
