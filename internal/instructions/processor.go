@@ -67,14 +67,11 @@ func (p *Processor) readAndProcessInstructions(instructionsPath string) (string,
 	processedContent := p.rewriteImageLinks(string(content))
 
 	// Wrap the content in a nice pull request format
-	wrappedContent := fmt.Sprintf(`## Assignment Instructions
-
-%s
+	wrappedContent := fmt.Sprintf(`%s
 
 ---
-
-*This pull request was automatically created by the Assignment Pull Request Creator action.*
-*Original instructions from: %s*
+<sub>*This pull request was automatically created by the Assignment Pull Request Creator action.*</sub>
+<sub>*Original instructions from: %s*</sub>
 `, processedContent, filepath.Base(instructionsPath))
 
 	return wrappedContent, nil

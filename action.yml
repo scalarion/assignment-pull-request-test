@@ -34,8 +34,7 @@ runs:
       uses: actions/setup-go@v6
       with:
         go-version-file: ${{ github.action_path }}/go.mod
-        cache: true
-        cache-dependency-path: ${{ github.action_path }}/go.sum
+        cache: false
 
     - name: Build assignment-pr-creator
       shell: bash
