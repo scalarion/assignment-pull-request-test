@@ -47,11 +47,8 @@ const (
 	// ReadmeFileName is the standard README file name
 	ReadmeFileName = "README.md"
 
-	// InstructionsFileName is the standard instructions file name
-	InstructionsFileName = "instructions.md"
-
-	// InstructionsFileNameUpper is the uppercase variant of instructions file name
-	InstructionsFileNameUpper = "INSTRUCTIONS.md"
+	// ReadmeFileName is the standard README file name
+	ReadmeFileNameLowerCase = "readme.md"
 )
 
 // File extensions and patterns

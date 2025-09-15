@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/google/go-github/v57/github"
@@ -90,7 +91,11 @@ func (c *Client) CreatePullRequest(title, body, head, base string) (string, erro
 		fmt.Printf("  Title: %s\n", title)
 		fmt.Printf("  Head: %s\n", head)
 		fmt.Printf("  Base: %s\n", base)
-		fmt.Printf("  Body: %s...\n", body[:100])
+		bodyPreview := body
+		if len(body) > 100 {
+			bodyPreview = body[:100] + "..."
+		}
+		fmt.Printf("  Body: %s\n", bodyPreview)
 
 		// Simulate PR number (this would need to be passed in for proper simulation)
 		fmt.Printf("[DRY RUN] Simulated pull request #1\n")
@@ -120,4 +125,45 @@ func (c *Client) CreatePullRequest(title, body, head, base string) (string, erro
 	prNumber := fmt.Sprintf("#%d", *pr.Number)
 	fmt.Printf("✅ Created pull request %s: %s\n", prNumber, title)
 	return prNumber, nil
+}
+
+// MergePullRequest merges a pull request automatically using the merge commit strategy
+func (c *Client) MergePullRequest(prNumber, title string) error {
+	if c.dryRun {
+		fmt.Printf("[DRY RUN] Would merge pull request %s\n", prNumber)
+		return nil
+	}
+
+	// Convert PR number string to integer (remove # prefix if present)
+	prNum, err := strconv.Atoi(strings.TrimPrefix(prNumber, "#"))
+	if err != nil {
+		return fmt.Errorf("invalid PR number format '%s': %w", prNumber, err)
+	}
+
+	// Parse repository name
+	parts := strings.Split(c.repositoryName, "/")
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid repository name format: %s", c.repositoryName)
+	}
+	owner, repo := parts[0], parts[1]
+
+	// Merge the pull request using merge commit strategy
+	commitMessage := fmt.Sprintf("Merge pull request #%s: %s", prNumber, title)
+	mergeOptions := &github.PullRequestOptions{
+		CommitTitle: commitMessage,
+		MergeMethod: "merge", // Use merge commit strategy
+	}
+
+	result, _, err := c.client.PullRequests.Merge(c.ctx, owner, repo, prNum, commitMessage, mergeOptions)
+	if err != nil {
+		return fmt.Errorf("error merging pull request #%s: %w", prNumber, err)
+	}
+
+	if result.Merged != nil && *result.Merged {
+		fmt.Printf("✅ Merged pull request #%s\n", prNumber)
+	} else {
+		return fmt.Errorf("failed to merge pull request #%s: merge was not successful", prNumber)
+	}
+
+	return nil
 }
