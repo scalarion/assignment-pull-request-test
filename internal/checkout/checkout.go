@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"assignment-pull-request/internal/assignment"
+	"assignment-pull-request/internal/constants"
 	"assignment-pull-request/internal/git"
 	"assignment-pull-request/internal/workflow"
 )
@@ -230,11 +231,21 @@ func (p *Processor) scanRepositoryRootFolders() ([]string, error) {
 
 	var folders []string
 	for _, entry := range entries {
-		if entry.IsDir() && !strings.HasPrefix(entry.Name(), ".git") {
-			// Skip .git directory but include other hidden directories like .github
+		if entry.IsDir() && !isFilteredFolder(entry.Name()) {
+			// Skip filtered folders like .git, .github, .devcontainer
 			folders = append(folders, entry.Name())
 		}
 	}
 
 	return folders, nil
+}
+
+// isFilteredFolder returns true if the folder should be filtered out from sparse-checkout
+func isFilteredFolder(folderName string) bool {
+	for _, filtered := range constants.FilteredFolders {
+		if folderName == filtered {
+			return true
+		}
+	}
+	return false
 }

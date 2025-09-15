@@ -63,6 +63,9 @@ const (
 	MarkdownExtension = ".md"
 )
 
+// Repository folders to filter out from sparse-checkout
+var FilteredFolders = []string{".git", ".github", ".devcontainer"}
+
 // Workflow file YAML keys
 const (
 	// WorkflowAssignmentRegexKey is the YAML key for assignment regex patterns
