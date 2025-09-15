@@ -102,3 +102,70 @@ jobs:
             ^test/fixtures/homework/(lab-[\d]+)$,
           default-branch: main
           dry-run: "yes"
+
+  test-repo:
+    name: Real Scenario Test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' # Only run on manual trigger
+
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout action repository
+        uses: actions/checkout@v5
+        with:
+          path: action-repo
+
+      - name: Create or recreate test fork
+        run: |
+          # Delete existing fork if it exists
+          if gh repo view majikmate/assignment-pull-request-test >/dev/null 2>&1; then
+            echo "Deleting existing fork..."
+            gh repo delete majikmate/assignment-pull-request-test --yes
+          fi
+
+          # Create fresh fork
+          echo "Creating fresh fork..."
+          gh repo fork majikmate/assignment-pull-request --repo-name assignment-pull-request-test --clone=false
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Clone test fork
+        run: |
+          gh repo clone majikmate/assignment-pull-request-test test-repo
+          cd test-repo
+          git config user.name "GitHub Actions Test"
+          git config user.email "actions@github.com"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Test action in real mode
+        working-directory: ./test-repo
+        uses: ./action-repo
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          assignment-regex: >
+            ^test/fixtures/assignments/(assignment-[\d]+)$,
+          default-branch: main
+          dry-run: "no"
+        env:
+          GITHUB_REPOSITORY: majikmate/assignment-pull-request-test
+
+      - name: Verify results
+        working-directory: ./test-repo
+        run: |
+          echo "🔍 Checking created branches..."
+          git fetch --all
+          git branch -a
+
+          echo "🔍 Checking for created pull requests..."
+          gh pr list --repo majikmate/assignment-pull-request-test
+
+          echo "🔍 Checking git log..."
+          git log --oneline --all --graph --max-count=20
+
+          echo "✅ Real scenario test completed"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
