@@ -27,7 +27,7 @@ jobs:
 
           # Create fresh fork and clone it directly
           echo "Creating fresh fork and cloning..."
-          gh repo fork majikmate/assignment-pull-request --repo-name assignment-pull-request-test --clone
+          gh repo fork majikmate/assignment-pull-request --fork-name assignment-pull-request-test --clone
           cd assignment-pull-request-test
           git config user.name "GitHub Actions Test"
           git config user.email "actions@github.com"
