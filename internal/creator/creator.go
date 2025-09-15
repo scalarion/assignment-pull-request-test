@@ -414,7 +414,7 @@ func (c *Creator) setOutputs() error {
 	fmt.Println("\nSummary:")
 
 	// Print each created branch on its own line
-	fmt.Println("Created branches:")
+	fmt.Printf("Created branches (%d):\n", len(c.createdBranches))
 	if len(c.createdBranches) > 0 {
 		for _, branch := range c.createdBranches {
 			fmt.Printf("  - %s\n", branch)
@@ -424,7 +424,7 @@ func (c *Creator) setOutputs() error {
 	}
 
 	// Print each created PR on its own line with title
-	fmt.Println("Created pull requests:")
+	fmt.Printf("Created pull requests (%d):\n", len(c.createdPullRequests))
 	if len(c.createdPullRequests) > 0 {
 		for _, pr := range c.createdPullRequests {
 			fmt.Printf("  - %s: %s\n", pr.Number, pr.Title)
