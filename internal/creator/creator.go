@@ -228,12 +228,6 @@ func (c *Creator) createPullRequestBody(assignmentPath string) (string, error) {
 	return instructionsProcessor.CreatePullRequestBody()
 }
 
-// branchToProcess represents a branch that needs processing
-type branchToProcess struct {
-	AssignmentPath string
-	BranchName     string
-}
-
 // processAssignments processes all found assignments and creates branches/PRs as needed
 func (c *Creator) processAssignments() error {
 	fmt.Printf("Looking for assignments matching '%s'\n", c.assignmentProcessor.GetAssignmentRegexStrings())
@@ -244,44 +238,55 @@ func (c *Creator) processAssignments() error {
 		return err
 	}
 
+	// No assignments found matching the criteria
 	if len(assignments) == 0 {
 		fmt.Println("No assignments found matching the criteria")
 		return nil
-	} // Phase 0: Fetch all remote branches to ensure complete local state
+	}
+
+	// First, ensure we're on the default branch
+	if err := c.gitOps.SwitchToBranch(c.config.defaultBranch); err != nil {
+		return err
+	}
+
+	// Phase 0: Sync with remote from clean state
 	fmt.Println("\n=== Phase 0: Syncing with remote ===")
+
+	// Fetch all remote branches to ensure complete local state
 	if err := c.gitOps.FetchAll(); err != nil {
 		fmt.Println("❌ Failed to fetch remote branches, aborting")
 		return err
 	}
 
-	if err := c.gitOps.GetRemoteBranches(c.config.defaultBranch); err != nil {
-		fmt.Println("❌ Failed to setup remote tracking branches")
-		return err
-	}
-
-	// Return to default branch
-	if err := c.gitOps.SwitchToBranch(c.config.defaultBranch); err != nil {
-		return err
-	}
-
 	// Phase 1: Get current state after sync
-	existingBranches, err := c.gitOps.GetLocalBranches()
+	localBranches, err := c.gitOps.GetLocalBranches()
 	if err != nil {
+		fmt.Println("❌ Failed to get local branches")
+		return err
+	}
+
+	// Get remote branches
+	remoteBranches, err := c.gitOps.GetRemoteBranches(c.config.defaultBranch)
+	if err != nil {
+		fmt.Println("❌ Failed to get remote branches")
 		return err
 	}
 
 	existingPRs, err := c.githubClient.GetExistingPullRequests()
 	if err != nil {
+		fmt.Println("❌ Failed to get existing pull requests")
 		return err
 	}
 
 	fmt.Printf("Found %d assignments to process\n", len(assignments))
-	fmt.Printf("Existing local branches: %d\n", len(existingBranches))
+	fmt.Printf("Existing local branches: %d\n", len(localBranches))
+	fmt.Printf("Existing remote branches: %d\n", len(remoteBranches))
 	fmt.Printf("Existing PRs: %d\n", len(existingPRs))
 
 	// Phase 2: Process all assignments locally
 	fmt.Println("\n=== Phase 2: Local processing ===")
-	var branchesToProcess []branchToProcess
+
+	prNeedsCreation := false
 
 	for _, assignmentInfo := range assignments {
 		assignmentPath := assignmentInfo.Path
@@ -290,15 +295,17 @@ func (c *Creator) processAssignments() error {
 		fmt.Printf("\nProcessing assignment: %s\n", assignmentPath)
 		fmt.Printf("Branch name: %s\n", branchName)
 
-		// Check if branch exists locally and if PR exists (or has ever existed)
-		branchExists := existingBranches[branchName]
-		_, prHasExisted := existingPRs[branchName]
+		// Check if branch exists locally, remotely, and if PR exists (or has ever existed)
+		_, localBranchExists := localBranches[branchName]
+		_, remoteBranchExists := remoteBranches[branchName]
+		_, prExists := existingPRs[branchName]
 
 		// Only create branch if:
 		// 1. Branch doesn't exist locally AND
-		// 2. No PR has ever existed for this branch name
-		if !branchExists && !prHasExisted {
-			fmt.Printf("Branch '%s' does not exist locally and no PR has ever existed, creating locally...\n", branchName)
+		// 2. Branch doesn't exist remotely AND
+		// 3. No PR has ever existed for this assignment
+		if !localBranchExists && !remoteBranchExists && !prExists {
+			fmt.Printf("Branch '%s' doesn't exist anywhere and no PR exists, creating branch...\n", branchName)
 
 			// Create branch locally
 			if err := c.createBranch(branchName); err != nil {
@@ -312,69 +319,50 @@ func (c *Creator) processAssignments() error {
 				fmt.Printf("❌ Failed to create README for '%s', skipping: %v\n", assignmentPath, err)
 				continue
 			}
+		}
 
-			branchesToProcess = append(branchesToProcess, branchToProcess{
-				AssignmentPath: assignmentPath,
-				BranchName:     branchName,
-			})
-
-		} else if !branchExists && prHasExisted {
-			fmt.Printf("Branch '%s' does not exist but PR has existed before (likely merged and branch deleted), skipping\n", branchName)
-			continue
-		} else if branchExists && !prHasExisted {
-			fmt.Printf("Branch '%s' already exists locally but no PR has ever existed, will create PR\n", branchName)
-			branchesToProcess = append(branchesToProcess, branchToProcess{
-				AssignmentPath: assignmentPath,
-				BranchName:     branchName,
-			})
-		} else if branchExists && prHasExisted {
-			fmt.Printf("Branch '%s' already exists locally and PR has existed before, skipping\n", branchName)
+		// Track if any PRs need creation
+		if !prExists {
+			prNeedsCreation = true
+		} else {
+			fmt.Printf("PR already exists for branch '%s', skipping\n", branchName)
 		}
 	}
 
 	// Phase 3: Push all changes atomically to remote
-	if len(branchesToProcess) > 0 {
+	if len(c.pendingPushes) > 0 {
 		fmt.Printf("\n=== Phase 3: Atomic push to remote ===\n")
-		fmt.Printf("Pushing %d branches to remote...\n", len(branchesToProcess))
+		fmt.Printf("Pushing all local branches (including %d new branches) to remote atomically...\n", len(c.pendingPushes))
 
-		if len(c.pendingPushes) > 0 {
-			fmt.Printf("Pushing all local branches (including %d new branches) to remote atomically...\n", len(c.pendingPushes))
-
-			if err := c.gitOps.PushAllBranches(); err != nil {
-				fmt.Println("❌ Failed to push branches to remote, aborting PR creation")
-				return err
-			}
-
-			fmt.Printf("✅ Successfully pushed all local branches to remote atomically\n")
-			c.pendingPushes = c.pendingPushes[:0] // Clear the slice
-		} else {
-			fmt.Println("No branches to push to remote")
+		if err := c.gitOps.PushAllBranches(); err != nil {
+			fmt.Println("❌ Failed to push branches to remote, aborting PR creation")
+			return err
 		}
+
+		fmt.Printf("✅ Successfully pushed all local branches to remote atomically\n")
+		c.pendingPushes = c.pendingPushes[:0] // Clear the slice
 	}
 
 	// Phase 4: Create pull requests
-	if len(branchesToProcess) > 0 {
+	if prNeedsCreation {
 		fmt.Printf("\n=== Phase 4: Pull request creation ===\n")
 
-		for _, branch := range branchesToProcess {
-			_, prHasExisted := existingPRs[branch.BranchName]
+		for _, assignmentInfo := range assignments {
+			assignmentPath := assignmentInfo.Path
+			branchName := assignmentInfo.BranchName
 
-			// Double-check PR status (should still be false)
-			if !prHasExisted {
-				fmt.Printf("Creating pull request for branch '%s'...\n", branch.BranchName)
-				if err := c.createPullRequest(branch.AssignmentPath, branch.BranchName); err != nil {
-					fmt.Printf("❌ Failed to create PR for '%s': %v\n", branch.BranchName, err)
+			// Only create PR if no pull request exists for this branch name
+			if _, prExists := existingPRs[branchName]; !prExists {
+				fmt.Printf("Creating pull request for branch '%s'...\n", branchName)
+				if err := c.createPullRequest(assignmentPath, branchName); err != nil {
+					fmt.Printf("❌ Failed to create PR for '%s': %v\n", branchName, err)
 					continue
 				}
-			} else {
-				fmt.Printf("PR has existed for branch '%s', skipping PR creation\n", branch.BranchName)
 			}
 		}
-	}
-
-	if len(branchesToProcess) == 0 {
+	} else {
 		fmt.Println("\n=== No new assignments to process ===")
-		fmt.Println("All assignments either already have branches or have had PRs created previously")
+		fmt.Println("All assignments already have PRs")
 	}
 
 	return nil

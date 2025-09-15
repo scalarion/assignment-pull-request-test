@@ -160,11 +160,15 @@ func (o *Operations) GetLocalBranches() (map[string]bool, error) {
 	return branches, nil
 }
 
-// GetRemoteBranches gets list of remote branches and creates local tracking branches
-func (o *Operations) GetRemoteBranches(defaultBranch string) error {
+// GetRemoteBranches gets list of remote branch names without creating local tracking branches
+func (o *Operations) GetRemoteBranches(defaultBranch string) (map[string]bool, error) {
+	remoteBranches := make(map[string]bool)
+	
 	if o.commander.dryRun {
-		fmt.Println("[DRY RUN] Would create local tracking branches for all remote branches")
-		return nil
+		fmt.Println("[DRY RUN] Would check remote branches with command:")
+		fmt.Println("  git branch -r")
+		// Return empty set for dry-run
+		return remoteBranches, nil
 	}
 
 	// Get list of remote branches
@@ -173,7 +177,7 @@ func (o *Operations) GetRemoteBranches(defaultBranch string) error {
 		"List remote branches",
 	)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	for _, line := range strings.Split(output, "\n") {
@@ -185,22 +189,16 @@ func (o *Operations) GetRemoteBranches(defaultBranch string) error {
 		}
 		
 		// Format: "  origin/branch-name"
-		if strings.HasPrefix(line, "origin/") {
-			branchName := strings.TrimPrefix(line, "origin/")
-			// Skip default branch as it already exists locally
+		if branchName, ok := strings.CutPrefix(line, "origin/"); ok {
+			// Skip default branch and empty names
 			if branchName != defaultBranch && branchName != "" {
-				if err := o.commander.RunCommand(
-					fmt.Sprintf("git checkout -b %s %s", branchName, line),
-					fmt.Sprintf("Create local tracking branch for %s", branchName),
-				); err != nil {
-					// Log error but continue with other branches
-					fmt.Printf("Warning: failed to create tracking branch for %s: %v\n", branchName, err)
-				}
+				remoteBranches[branchName] = true
 			}
 		}
 	}
 
-	return nil
+	fmt.Printf("Found %d remote branches\n", len(remoteBranches))
+	return remoteBranches, nil
 }
 
 // GetCurrentBranch returns the name of the currently checked out branch
