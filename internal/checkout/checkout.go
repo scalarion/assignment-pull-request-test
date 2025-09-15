@@ -108,7 +108,7 @@ func (p *Processor) SparseCheckout() error {
 	}
 	fmt.Printf("Debug: Found %d root folders: %v\n", len(rootFolders), rootFolders)
 
-	// Get all unique assignment root folders by extracting the first directory component from assignment paths
+	// Get all assignments to identify which root folders contain assignments
 	fmt.Printf("Debug: Processing all assignments to find assignment root folders...\n")
 	allAssignments, err := assignmentProcessor.ProcessAssignments()
 	if err != nil {
@@ -119,8 +119,15 @@ func (p *Processor) SparseCheckout() error {
 	assignmentRootFoldersMap := make(map[string]bool)
 	for _, assignment := range allAssignments {
 		if assignment.Path != "" {
-			// Extract root folder from assignment path (e.g., "assignments/hw-1" -> "assignments")
-			normalizedPath := filepath.ToSlash(assignment.Path)
+			// Convert absolute path to relative path first
+			relativePath, err := filepath.Rel(p.repositoryRoot, assignment.Path)
+			if err != nil {
+				fmt.Printf("Warning: could not make assignment path relative: %s\n", assignment.Path)
+				continue
+			}
+
+			// Extract root folder from relative assignment path (e.g., "test/fixtures/labs/lab-1" -> "test")
+			normalizedPath := filepath.ToSlash(relativePath)
 			pathParts := strings.Split(normalizedPath, "/")
 			if len(pathParts) > 0 {
 				rootFolder := pathParts[0]
@@ -140,21 +147,27 @@ func (p *Processor) SparseCheckout() error {
 	// Create initial paths list (empty, will be populated with root folders and matching assignments)
 	paths := []string{}
 
-	// Add all non-assignment root folders to the sparse-checkout paths
+	// Add only non-assignment root folders to the sparse-checkout paths
 	fmt.Printf("Debug: Adding non-assignment root folders to sparse-checkout...\n")
 	for _, rootFolder := range rootFolders {
 		if !assignmentRootFoldersMap[rootFolder] {
 			paths = append(paths, rootFolder)
 			fmt.Printf("  + %s (non-assignment root)\n", rootFolder)
 		} else {
-			fmt.Printf("  - %s (assignment root, will include only matching assignments)\n", rootFolder)
+			fmt.Printf("  - %s (assignment root, excluding - only specific assignments will be included)\n", rootFolder)
 		}
 	}
 
 	// Add only the assignment folders that match the current branch
 	fmt.Printf("Debug: Adding matching assignment folders to sparse-checkout...\n")
 	for _, path := range assignmentPaths {
-		normalizedPath := filepath.ToSlash(path)
+		// Convert absolute path to relative path for sparse-checkout
+		relativePath, err := filepath.Rel(p.repositoryRoot, path)
+		if err != nil {
+			fmt.Printf("Warning: could not make path relative: %s\n", path)
+			continue
+		}
+		normalizedPath := filepath.ToSlash(relativePath)
 		paths = append(paths, normalizedPath)
 		fmt.Printf("  + %s (matching assignment)\n", normalizedPath)
 	}
@@ -175,8 +188,8 @@ func (p *Processor) SparseCheckout() error {
 
 	fmt.Printf("✅ Sparse checkout configured successfully for %d assignment folder(s)\n", len(assignmentPaths))
 	fmt.Printf("🎯 Repository now shows only:\n")
-	fmt.Printf("   - Non-assignment root folders\n")
-	fmt.Printf("   - Assignment folders matching branch '%s'\n", currentBranch)
+	fmt.Printf("   - Root folders that don't contain assignments\n")
+	fmt.Printf("   - Specific assignment folders matching branch '%s'\n", currentBranch)
 	return nil
 }
 

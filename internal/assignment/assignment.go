@@ -171,11 +171,23 @@ func (ap *Processor) findAssignments() ([]string, error) {
 
 		// Normalize path to use forward slashes for pattern matching
 		normalizedPath := filepath.ToSlash(path)
-		fmt.Printf("  Checking directory: %s\n", normalizedPath)
+
+		// Convert absolute path to relative path from repository root
+		relativePath, err := filepath.Rel(rootDir, path)
+		if err != nil {
+			fmt.Printf("    Warning: Could not make path relative: %s (error: %v)\n", path, err)
+			return nil
+		}
+
+		// Use the relative path for pattern matching
+		relativeNormalizedPath := filepath.ToSlash(relativePath)
+		fmt.Printf("  Checking directory: %s (relative: %s)\n", normalizedPath, relativeNormalizedPath)
 
 		for i, assignmentPattern := range assignmentPatterns {
 			fmt.Printf("    Testing pattern %d: %s\n", i+1, assignmentPattern.String())
-			if assignmentPattern.MatchString(normalizedPath) {
+			fmt.Printf("      Against relative path: '%s'\n", relativeNormalizedPath)
+
+			if assignmentPattern.MatchString(relativeNormalizedPath) {
 				assignments = append(assignments, path)
 				matchedDirs++
 				fmt.Printf("    ✅ MATCH! Added: %s\n", path)
@@ -218,9 +230,16 @@ func (ap *Processor) extractBranchNameFromPath(assignmentPath string) (string, b
 		return "", false
 	}
 
+	// Convert absolute path to relative path from repository root
+	relativePath, err := filepath.Rel(ap.repositoryRoot, assignmentPath)
+	if err != nil {
+		fmt.Printf("    Error: Could not make path relative: %v\n", err)
+		return "", false
+	}
+
 	// Normalize path to use forward slashes for pattern matching
-	normalizedPath := filepath.ToSlash(assignmentPath)
-	fmt.Printf("    Debug: Normalized path: %s\n", normalizedPath)
+	normalizedPath := filepath.ToSlash(relativePath)
+	fmt.Printf("    Debug: Normalized relative path: %s\n", normalizedPath)
 
 	for i, pattern := range assignmentPatterns {
 		if pattern == nil {
