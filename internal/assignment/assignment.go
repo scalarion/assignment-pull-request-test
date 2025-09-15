@@ -47,7 +47,7 @@ func NewProcessor(repositoryRoot string, assignmentProcessor *regex.Processor) (
 // ProcessAssignments discovers all assignments and returns assignment info with unique branch names
 func (ap *Processor) ProcessAssignments() ([]Info, error) {
 	fmt.Printf("🎯 Processing assignments for branch matching...\n")
-	
+
 	// Find all assignment paths
 	assignments, err := ap.findAssignments()
 	if err != nil {
@@ -168,11 +168,11 @@ func (ap *Processor) findAssignments() ([]string, error) {
 		}
 
 		checkedDirs++
-		
+
 		// Normalize path to use forward slashes for pattern matching
 		normalizedPath := filepath.ToSlash(path)
 		fmt.Printf("  Checking directory: %s\n", normalizedPath)
-		
+
 		for i, assignmentPattern := range assignmentPatterns {
 			fmt.Printf("    Testing pattern %d: %s\n", i+1, assignmentPattern.String())
 			if assignmentPattern.MatchString(normalizedPath) {
@@ -211,7 +211,7 @@ func (ap *Processor) GetAssignmentRegexStrings() []string {
 // extractBranchNameFromPath extracts a branch name from a path using the processor's compiled patterns
 func (ap *Processor) extractBranchNameFromPath(assignmentPath string) (string, bool) {
 	fmt.Printf("    Debug: Extracting branch name from: %s\n", assignmentPath)
-	
+
 	assignmentPatterns, err := ap.assignmentPattern.Compiled()
 	if err != nil {
 		fmt.Printf("    Error: Failed to compile patterns: %v\n", err)
