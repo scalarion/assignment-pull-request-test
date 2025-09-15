@@ -40,19 +40,29 @@ runs:
     - name: Build assignment-pr-creator
       shell: bash
       run: |
-        cd ${{ github.action_path }}
-        go build -o bin/assignment-pr-creator cmd/assignment-pr-creator/main.go
+        cd "${{ github.action_path }}"
+        if [[ "${{ runner.os }}" == "Windows" ]]; then
+          go build -o "bin/assignment-pr-creator.exe" cmd/assignment-pr-creator/main.go
+        else
+          go build -o "bin/assignment-pr-creator" cmd/assignment-pr-creator/main.go
+        fi
 
     - name: Create assignment pull requests
       id: create-assignments
       shell: bash
+      working-directory: ${{ github.workspace }}
       env:
         DEFAULT_BRANCH: ${{ inputs.default-branch }}
         ASSIGNMENT_REGEX: ${{ inputs.assignment-regex }}
         GITHUB_REPOSITORY: ${{ github.repository }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
         DRY_RUN: ${{ inputs.dry-run }}
-      run: ${{ github.action_path }}/bin/assignment-pr-creator
+      run: |
+        if [[ "${{ runner.os }}" == "Windows" ]]; then
+          "${{ github.action_path }}/bin/assignment-pr-creator.exe"
+        else
+          "${{ github.action_path }}/bin/assignment-pr-creator"
+        fi
 
 branding:
   icon: git-pull-request
