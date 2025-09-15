@@ -91,7 +91,7 @@ jobs:
 
       - name: Test action with dry-run (${{ matrix.platform }})
         # uses: majikmate/assignment-pull-request@main
-        uses: .
+        uses: ./
         with:
           github-token: fake-token
           assignment-regex: >
@@ -103,13 +103,13 @@ jobs:
           default-branch: main
           dry-run: "yes"
 
-      # Verify binary was created with correct extension
+      # Verify binary was created by action
       - name: Verify binary created by action (${{ matrix.platform }})
         shell: bash
         run: |
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            test -f "./bin/assignment-pr-creator.exe" || (echo "Windows binary not found" && exit 1)
+            test -f "./assignment-pr-creator.exe" || (echo "Windows binary not found" && exit 1)
           else
-            test -f "./bin/assignment-pr-creator" || (echo "Unix binary not found" && exit 1)
+            test -f "./assignment-pr-creator" || (echo "Unix binary not found" && exit 1)
           fi
           echo "✅ Binary verification passed for ${{ matrix.platform }}"
