@@ -18,6 +18,12 @@ import (
 	"golang.org/x/text/language"
 )
 
+// PullRequestInfo holds information about a created pull request
+type PullRequestInfo struct {
+	Number string `json:"number"`
+	Title  string `json:"title"`
+}
+
 // Config holds configuration for the PR creator
 type Config struct {
 	gitHubToken       string
@@ -56,7 +62,7 @@ type Creator struct {
 	githubClient        *github.Client
 	assignmentProcessor *assignment.Processor
 	createdBranches     []string
-	createdPullRequests []string
+	createdPullRequests []PullRequestInfo
 	pendingPushes       []string
 }
 
@@ -81,7 +87,7 @@ func NewWithConfig(config *Config) (*Creator, error) {
 		githubClient:        github.NewClient(config.gitHubToken, config.repositoryName, config.dryRun),
 		assignmentProcessor: assignmentProc,
 		createdBranches:     make([]string, 0),
-		createdPullRequests: make([]string, 0),
+		createdPullRequests: make([]PullRequestInfo, 0),
 	}
 
 	return creator, nil
@@ -218,7 +224,10 @@ func (c *Creator) createPullRequest(assignmentPath, branchName string) error {
 		return fmt.Errorf("error creating pull request for '%s': %w", assignmentPath, err)
 	}
 
-	c.createdPullRequests = append(c.createdPullRequests, prNumber)
+	c.createdPullRequests = append(c.createdPullRequests, PullRequestInfo{
+		Number: prNumber,
+		Title:  title,
+	})
 	return nil
 }
 
@@ -401,9 +410,28 @@ func (c *Creator) setOutputs() error {
 		}
 	}
 
+	// Format output with each item on separate lines
 	fmt.Println("\nSummary:")
-	fmt.Printf("Created branches: %v\n", c.createdBranches)
-	fmt.Printf("Created pull requests: %v\n", c.createdPullRequests)
+
+	// Print each created branch on its own line
+	fmt.Println("Created branches:")
+	if len(c.createdBranches) > 0 {
+		for _, branch := range c.createdBranches {
+			fmt.Printf("  - %s\n", branch)
+		}
+	} else {
+		fmt.Println("  none")
+	}
+
+	// Print each created PR on its own line with title
+	fmt.Println("Created pull requests:")
+	if len(c.createdPullRequests) > 0 {
+		for _, pr := range c.createdPullRequests {
+			fmt.Printf("  - %s: %s\n", pr.Number, pr.Title)
+		}
+	} else {
+		fmt.Println("  none")
+	}
 
 	return nil
 }
