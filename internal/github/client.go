@@ -148,21 +148,21 @@ func (c *Client) MergePullRequest(prNumber, title string) error {
 	owner, repo := parts[0], parts[1]
 
 	// Merge the pull request using merge commit strategy
-	commitMessage := fmt.Sprintf("Merge pull request #%s: %s", prNumber, title)
+	commitMessage := fmt.Sprintf("Merge pull request %s: %s", prNumber, title)
 	mergeOptions := &github.PullRequestOptions{
 		CommitTitle: commitMessage,
 		MergeMethod: "merge", // Use merge commit strategy
 	}
 
-	result, _, err := c.client.PullRequests.Merge(c.ctx, owner, repo, prNum, commitMessage, mergeOptions)
+	result, _, err := c.client.PullRequests.Merge(c.ctx, owner, repo, prNum, "", mergeOptions)
 	if err != nil {
-		return fmt.Errorf("error merging pull request #%s: %w", prNumber, err)
+		return fmt.Errorf("error merging pull request %s: %w", prNumber, err)
 	}
 
 	if result.Merged != nil && *result.Merged {
-		fmt.Printf("✅ Merged pull request #%s\n", prNumber)
+		fmt.Printf("✅ Merged pull request %s\n", prNumber)
 	} else {
-		return fmt.Errorf("failed to merge pull request #%s: merge was not successful", prNumber)
+		return fmt.Errorf("failed to merge pull request %s: merge was not successful", prNumber)
 	}
 
 	return nil
