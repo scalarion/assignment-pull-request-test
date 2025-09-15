@@ -231,7 +231,7 @@ func (c *Creator) addPullRequestLinkAfterPush(assignmentPath, branchName, prNumb
 	}
 
 	// Add PR link to the top of the README
-	if err := c.addPullRequestLinkToReadme(assignmentPath, prNumber); err != nil {
+	if err := c.addPullRequestLinkToReadme(assignmentPath, branchName, prNumber); err != nil {
 		fmt.Printf("Warning: failed to add PR link to README: %v\n", err)
 		return err
 	}
@@ -265,7 +265,7 @@ func (c *Creator) createPullRequestBody(assignmentPath string) (string, error) {
 }
 
 // addPullRequestLinkToReadme adds a link to the pull request at the top of the README file
-func (c *Creator) addPullRequestLinkToReadme(assignmentPath, prNumber string) error {
+func (c *Creator) addPullRequestLinkToReadme(assignmentPath, branchName, prNumber string) error {
 	readmePath := filepath.Join(assignmentPath, constants.ReadmeFileName)
 
 	// Check if README exists
@@ -282,7 +282,7 @@ func (c *Creator) addPullRequestLinkToReadme(assignmentPath, prNumber string) er
 
 	// Use processor to add PR link
 	instructionsProcessor := instructions.NewWithDefaults(c.config.defaultBranch, assignmentPath)
-	updatedContent := instructionsProcessor.AddPullRequestLinkToReadme(currentContent, c.config.repositoryName, prNumber)
+	updatedContent := instructionsProcessor.AddPullRequestLinkToReadme(currentContent, c.config.repositoryName, branchName, prNumber)
 
 	// Write updated content back to file
 	if !c.config.dryRun {
