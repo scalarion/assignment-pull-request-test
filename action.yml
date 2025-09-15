@@ -40,14 +40,15 @@ runs:
     - name: Run assignment-pr-creator
       id: create-assignments
       shell: bash
-      working-directory: ${{ github.workspace }}
       env:
         DEFAULT_BRANCH: ${{ inputs.default-branch }}
         ASSIGNMENT_REGEX: ${{ inputs.assignment-regex }}
         GITHUB_REPOSITORY: ${{ github.repository }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
         DRY_RUN: ${{ inputs.dry-run }}
-      run: go run "${{ github.action_path }}/cmd/assignment-pr-creator/main.go"
+      run: |
+        cd "${{ github.workspace }}"
+        go run "${{ github.action_path }}/cmd/assignment-pr-creator"
 
 branding:
   icon: git-pull-request
