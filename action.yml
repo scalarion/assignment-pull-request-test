@@ -34,7 +34,13 @@ runs:
       uses: actions/setup-go@v6
       with:
         go-version-file: ${{ github.action_path }}/go.mod
-        cache: false
+        cache: true
+
+    - name: Download Go modules
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: |
+        go mod download
 
     - name: Build assignment-pr-creator
       shell: bash
