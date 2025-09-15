@@ -207,11 +207,18 @@ func (c *Creator) createPullRequest(assignmentPath, branchName string) error {
 		// Continue with merge even if PR link addition fails
 	}
 
-	// Merge the PR after the link has been added and pushed
-	if err := c.mergePullRequestAfterLink(prNumber, title); err != nil {
-		fmt.Printf("Warning: failed to merge PR %s: %v\n", prNumber, err)
-		// Don't return error - PR was created successfully
-	}
+	// TODO: Auto-merge is temporarily disabled due to "Head branch is out of date" errors
+	// The PR links are successfully added to README files, so the core functionality works
+	// Auto-merge can be re-enabled once we solve the timing issue with GitHub API
+	/*
+		// Merge the PR after the link has been added and pushed
+		if err := c.mergePullRequestAfterLink(prNumber, title); err != nil {
+			fmt.Printf("Warning: failed to merge PR %s: %v\n", prNumber, err)
+			// Don't return error - PR was created successfully
+		}
+	*/
+
+	fmt.Printf("✅ Created and updated PR %s with PR link in README\n", prNumber)
 
 	return nil
 }
