@@ -20,8 +20,16 @@ type Action struct {
 
 // Job represents a job in a GitHub Actions workflow
 type Job struct {
+	Uses  string                 `yaml:"uses"`
+	With  map[string]interface{} `yaml:"with"`
+	Steps []Step                 `yaml:"steps"`
+}
+
+// Step represents a step within a job in a GitHub Actions workflow
+type Step struct {
 	Uses string                 `yaml:"uses"`
 	With map[string]interface{} `yaml:"with"`
+	Name string                 `yaml:"name"`
 }
 
 // Processor handles workflow file parsing and pattern extraction
@@ -191,9 +199,10 @@ func (p *Processor) parseFile(filePath string) error {
 	for jobName, job := range config.Jobs {
 		fmt.Printf("      Job '%s': uses='%s'\n", jobName, job.Uses)
 
+		// Case 1: Reusable workflow at job level
 		if p.isAssignmentAction(job.Uses) {
 			jobsWithAssignmentAction++
-			fmt.Printf("        ✅ Job uses assignment action\n")
+			fmt.Printf("        ✅ Job uses assignment action (reusable workflow)\n")
 
 			if with := job.With; with != nil {
 				fmt.Printf("        Debug: Job has %d 'with' parameters\n", len(with))
@@ -216,13 +225,57 @@ func (p *Processor) parseFile(filePath string) error {
 						fmt.Printf("        ⚠️  Assignment patterns value is not a string: %T\n", assignmentPatterns)
 					}
 				} else {
-					fmt.Printf("        ⚠️  No '%s' parameter found in job\n", constants.WorkflowAssignmentRegexKey)
+					fmt.Printf("        ⚠️  No '%s' parameter found in job (reusable workflow)\n", constants.WorkflowAssignmentRegexKey)
 				}
 			} else {
-				fmt.Printf("        ⚠️  Job has no 'with' parameters\n")
+				fmt.Printf("        ⚠️  Job has no 'with' parameters (reusable workflow)\n")
 			}
 		} else {
-			fmt.Printf("        - Job does not use assignment action\n")
+			fmt.Printf("        - Job does not use assignment action as reusable workflow, checking steps...\n")
+		}
+
+		// Case 2: Steps within job
+		if len(job.Steps) > 0 {
+			fmt.Printf("        Debug: Job has %d step(s)\n", len(job.Steps))
+		}
+		for idx, step := range job.Steps {
+			name := step.Name
+			if name == "" {
+				name = fmt.Sprintf("step-%d", idx+1)
+			}
+			fmt.Printf("          Step '%s': uses='%s'\n", name, step.Uses)
+
+			if p.isAssignmentAction(step.Uses) {
+				jobsWithAssignmentAction++
+				fmt.Printf("            ✅ Step uses assignment action\n")
+
+				if with := step.With; with != nil {
+					fmt.Printf("            Debug: Step has %d 'with' parameters\n", len(with))
+					for key, value := range with {
+						fmt.Printf("              - %s: %v\n", key, value)
+					}
+
+					// Extract assignment patterns
+					if assignmentPatterns, ok := with[constants.WorkflowAssignmentRegexKey]; ok {
+						fmt.Printf("            ✅ Found assignment patterns parameter in step\n")
+						if assignmentStr, ok := assignmentPatterns.(string); ok {
+							fmt.Printf("            Debug: Raw assignment patterns (step): %s\n", assignmentStr)
+							beforeCount := len(p.assignmentPattern.Patterns())
+							p.assignmentPattern.AddCommaSeparated(assignmentStr)
+							afterCount := len(p.assignmentPattern.Patterns())
+							newPatterns := afterCount - beforeCount
+							patternsExtracted += newPatterns
+							fmt.Printf("            ✅ Added %d new patterns from step (total now: %d)\n", newPatterns, afterCount)
+						} else {
+							fmt.Printf("            ⚠️  Assignment patterns value in step is not a string: %T\n", assignmentPatterns)
+						}
+					} else {
+						fmt.Printf("            ⚠️  No '%s' parameter found in step\n", constants.WorkflowAssignmentRegexKey)
+					}
+				} else {
+					fmt.Printf("            ⚠️  Step has no 'with' parameters\n")
+				}
+			}
 		}
 	}
 
