@@ -201,6 +201,12 @@ func (c *Creator) createPullRequest(assignmentPath, branchName string) error {
 		Title:  title,
 	})
 
+	// Add PR link to the top of the README
+	if err := c.addPullRequestLinkToReadme(assignmentPath, prNumber); err != nil {
+		fmt.Printf("Warning: failed to add PR link to README: %v\n", err)
+		// Don't return error here as PR creation was successful
+	}
+
 	// Automatically merge the pull request
 	// Note: GitHub automatically closes merged PRs, so "keeping it open" after merge is not possible
 	// The PR will be merged and show as "merged" status instead of "open"
@@ -216,6 +222,49 @@ func (c *Creator) createPullRequest(assignmentPath, branchName string) error {
 func (c *Creator) createPullRequestBody(assignmentPath string) (string, error) {
 	instructionsProcessor := instructions.NewWithDefaults(c.config.defaultBranch, assignmentPath)
 	return instructionsProcessor.CreatePullRequestBody()
+}
+
+// addPullRequestLinkToReadme adds a link to the pull request at the top of the README file
+func (c *Creator) addPullRequestLinkToReadme(assignmentPath, prNumber string) error {
+	readmePath := filepath.Join(assignmentPath, constants.ReadmeFileName)
+
+	// Check if README exists
+	if _, err := os.Stat(readmePath); os.IsNotExist(err) {
+		return fmt.Errorf("README file does not exist at %s", readmePath)
+	}
+
+	// Read current README content
+	currentBytes, err := os.ReadFile(readmePath)
+	if err != nil {
+		return fmt.Errorf("failed to read README file: %w", err)
+	}
+	currentContent := string(currentBytes)
+
+	// Use processor to add PR link
+	instructionsProcessor := instructions.NewWithDefaults(c.config.defaultBranch, assignmentPath)
+	updatedContent := instructionsProcessor.AddPullRequestLinkToReadme(currentContent, c.config.repositoryName, prNumber)
+
+	// Write updated content back to file
+	if !c.config.dryRun {
+		if err := os.WriteFile(readmePath, []byte(updatedContent), 0644); err != nil {
+			return fmt.Errorf("failed to write updated README: %w", err)
+		}
+		fmt.Printf("✅ Added PR link %s to README at %s\n", prNumber, readmePath)
+
+		// Add and commit the updated README
+		if err := c.gitOps.AddFile(readmePath); err != nil {
+			return fmt.Errorf("failed to add updated README to git: %w", err)
+		}
+
+		commitMessage := fmt.Sprintf("Add pull request link %s to README", prNumber)
+		if err := c.gitOps.Commit(commitMessage); err != nil {
+			return fmt.Errorf("failed to commit updated README: %w", err)
+		}
+	} else {
+		fmt.Printf("[DRY RUN] Would add PR link %s to README at %s\n", prNumber, readmePath)
+	}
+
+	return nil
 }
 
 // processAssignments processes all found assignments and creates branches/PRs as needed

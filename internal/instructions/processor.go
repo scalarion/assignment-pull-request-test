@@ -185,3 +185,15 @@ func (p *Processor) AugmentExistingReadmeContent(existingContent string) string 
 `
 	return strings.TrimSpace(existingContent) + augmentationComment
 }
+
+// AddPullRequestLinkToReadme adds a pull request link to the top of README content
+func (p *Processor) AddPullRequestLinkToReadme(content, repositoryName, prNumber string) string {
+	// Create the PR link banner
+	prLink := fmt.Sprintf("https://github.com/%s/pull/%s", repositoryName, strings.TrimPrefix(prNumber, "#"))
+	prBanner := fmt.Sprintf(`> **📋 [View Pull Request %s](%s)**
+
+`, prNumber, prLink)
+
+	// Add the banner at the very top of the content
+	return prBanner + content
+}
