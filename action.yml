@@ -40,6 +40,7 @@ runs:
     - name: Run assignment-pr-creator
       id: create-assignments
       shell: bash
+      working-directory: ${{ github.workspace }}
       env:
         DEFAULT_BRANCH: ${{ inputs.default-branch }}
         ASSIGNMENT_REGEX: ${{ inputs.assignment-regex }}
