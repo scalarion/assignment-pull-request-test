@@ -185,7 +185,8 @@ func (p *Processor) AugmentExistingReadmeContent(existingContent string) string 
 func (p *Processor) AddPullRequestLinkToReadme(content, repositoryName, branchName, prNumber string) string {
 	// Create the PR link banner
 	prLink := fmt.Sprintf("https://github.com/%s/pull/%s", repositoryName, strings.TrimPrefix(prNumber, "#"))
-	prBanner := fmt.Sprintf(`*Overview*
+	prBanner := fmt.Sprintf(`#Overview#
+
 Continue work on [Pull Request %s: %s](%s)
 
 `, prNumber, branchName, prLink)

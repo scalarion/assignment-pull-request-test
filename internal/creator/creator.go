@@ -429,13 +429,8 @@ func (c *Creator) processAssignments() error {
 			}
 		}
 
-		// Phase 5: Merge all branches to main
-		if err := c.mergeAllBranchesToMain(); err != nil {
-			fmt.Printf("❌ Failed to merge branches to main: %v\n", err)
-			return err
-		}
-
-		// Phase 6: Sync all branches with main
+		// Phase 5: Sync all branches with main
+		fmt.Printf("\n=== Phase 5: Syncing all branches with main ===\n")
 		if err := c.syncAllBranchesWithMain(); err != nil {
 			fmt.Printf("❌ Failed to sync branches with main: %v\n", err)
 			return err
