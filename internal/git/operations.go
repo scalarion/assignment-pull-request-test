@@ -293,7 +293,7 @@ func (o *Operations) SetSparseCheckoutPaths(paths []string) error {
 func (o *Operations) DisableSparseCheckout() error {
 	return o.commander.RunCommand(
 		"git sparse-checkout disable",
-		"Disable sparse-checkout completely",
+		"Disable sparse-checkout",
 	)
 }
 

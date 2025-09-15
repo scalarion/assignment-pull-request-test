@@ -37,13 +37,18 @@ func NewWithGitOps(repositoryRoot string, gitOps *git.Operations) *Processor {
 // Automatically discovers workflow patterns, finds matching assignments, and sets up sparse-checkout
 // to include all non-assignment root folders plus only the assignment folders that match the current branch
 func (p *Processor) SparseCheckout() error {
+	fmt.Printf("🔍 Starting sparse-checkout configuration...\n")
+	fmt.Printf("Debug: Repository root: %s\n", p.repositoryRoot)
+
 	// Disable sparse-checkout at the very beginning to reset state
+	fmt.Printf("Debug: Disabling existing sparse-checkout configuration...\n")
 	if err := p.gitOps.DisableSparseCheckout(); err != nil {
 		// Ignore error if sparse-checkout wasn't enabled
 		fmt.Printf("Warning: could not disable sparse-checkout (may not be enabled): %v\n", err)
 	}
 
 	// Parse workflow files to find assignment configurations
+	fmt.Printf("Debug: Parsing workflow files...\n")
 	workflowProcessor := workflow.New()
 	err := workflowProcessor.ParseAllFiles()
 	if err != nil {
@@ -53,6 +58,10 @@ func (p *Processor) SparseCheckout() error {
 
 	// Get pattern processors from workflow
 	assignmentPattern := workflowProcessor.AssignmentPattern()
+	fmt.Printf("Debug: Found assignment pattern with %d regex patterns\n", len(assignmentPattern.Patterns()))
+	for i, pattern := range assignmentPattern.Patterns() {
+		fmt.Printf("  Pattern %d: %s\n", i+1, pattern)
+	}
 
 	// Skip operations if no patterns found
 	if len(assignmentPattern.Patterns()) == 0 {
@@ -61,38 +70,51 @@ func (p *Processor) SparseCheckout() error {
 	}
 
 	// Create assignment processor
+	fmt.Printf("Debug: Creating assignment processor...\n")
 	assignmentProcessor, err := assignment.NewProcessor(p.repositoryRoot, assignmentPattern)
 	if err != nil {
 		return fmt.Errorf("failed to create assignment processor: %w", err)
 	}
 
+	// Get current branch
+	currentBranch, err := p.getCurrentBranch()
+	if err != nil {
+		return fmt.Errorf("failed to get current branch: %w", err)
+	}
+	fmt.Printf("Debug: Current branch: %s\n", currentBranch)
+
 	// Get matching assignments for current branch
+	fmt.Printf("Debug: Finding assignments matching current branch...\n")
 	assignmentPaths, err := p.getMatchingAssignments(assignmentProcessor)
 	if err != nil {
 		return fmt.Errorf("failed to get matching assignments: %w", err)
 	}
 
 	if len(assignmentPaths) == 0 {
-		fmt.Printf("No assignment folders match current branch\n")
+		fmt.Printf("No assignment folders match current branch '%s'\n", currentBranch)
 		return nil
 	}
 
-	fmt.Printf("Found %d matching assignment folder(s) for current branch\n", len(assignmentPaths))
+	fmt.Printf("Found %d matching assignment folder(s) for current branch '%s'\n", len(assignmentPaths), currentBranch)
 	for _, assignmentFolder := range assignmentPaths {
 		fmt.Printf("  - %s\n", assignmentFolder)
 	}
 
 	// Scan repository root folders
+	fmt.Printf("Debug: Scanning repository root folders...\n")
 	rootFolders, err := p.scanRepositoryRootFolders()
 	if err != nil {
 		return fmt.Errorf("failed to scan repository root folders: %w", err)
 	}
+	fmt.Printf("Debug: Found %d root folders: %v\n", len(rootFolders), rootFolders)
 
 	// Get all unique assignment root folders by extracting the first directory component from assignment paths
+	fmt.Printf("Debug: Processing all assignments to find assignment root folders...\n")
 	allAssignments, err := assignmentProcessor.ProcessAssignments()
 	if err != nil {
 		return fmt.Errorf("failed to process assignments: %w", err)
 	}
+	fmt.Printf("Debug: Found %d total assignments in repository\n", len(allAssignments))
 
 	assignmentRootFoldersMap := make(map[string]bool)
 	for _, assignment := range allAssignments {
@@ -109,36 +131,52 @@ func (p *Processor) SparseCheckout() error {
 		}
 	}
 
+	var assignmentRootFolders []string
+	for folder := range assignmentRootFoldersMap {
+		assignmentRootFolders = append(assignmentRootFolders, folder)
+	}
+	fmt.Printf("Debug: Assignment root folders: %v\n", assignmentRootFolders)
+
 	// Create initial paths list (empty, will be populated with root folders and matching assignments)
 	paths := []string{}
 
 	// Add all non-assignment root folders to the sparse-checkout paths
+	fmt.Printf("Debug: Adding non-assignment root folders to sparse-checkout...\n")
 	for _, rootFolder := range rootFolders {
 		if !assignmentRootFoldersMap[rootFolder] {
 			paths = append(paths, rootFolder)
+			fmt.Printf("  + %s (non-assignment root)\n", rootFolder)
+		} else {
+			fmt.Printf("  - %s (assignment root, will include only matching assignments)\n", rootFolder)
 		}
 	}
-	fmt.Printf("Debug: Found root folders (excluding assignment roots): %v\n", rootFolders)
 
 	// Add only the assignment folders that match the current branch
+	fmt.Printf("Debug: Adding matching assignment folders to sparse-checkout...\n")
 	for _, path := range assignmentPaths {
 		normalizedPath := filepath.ToSlash(path)
 		paths = append(paths, normalizedPath)
+		fmt.Printf("  + %s (matching assignment)\n", normalizedPath)
 	}
-	fmt.Printf("Debug: Final paths for sparse-checkout: %v\n", paths)
+	fmt.Printf("Debug: Final paths for sparse-checkout (%d total): %v\n", len(paths), paths)
 
 	// Enable sparse-checkout with cone mode for better performance
+	fmt.Printf("Debug: Enabling sparse-checkout with cone mode...\n")
 	if err := p.gitOps.InitSparseCheckoutCone(); err != nil {
 		return fmt.Errorf("failed to enable sparse-checkout with cone mode: %w", err)
 	}
 
 	// Configure sparse-checkout with the computed paths
+	fmt.Printf("Debug: Setting sparse-checkout paths...\n")
 	err = p.gitOps.SetSparseCheckoutPaths(paths)
 	if err != nil {
 		return fmt.Errorf("failed to configure sparse checkout: %w", err)
 	}
 
-	fmt.Printf("Sparse checkout configured for %d assignment folder(s)\n", len(assignmentPaths))
+	fmt.Printf("✅ Sparse checkout configured successfully for %d assignment folder(s)\n", len(assignmentPaths))
+	fmt.Printf("🎯 Repository now shows only:\n")
+	fmt.Printf("   - Non-assignment root folders\n")
+	fmt.Printf("   - Assignment folders matching branch '%s'\n", currentBranch)
 	return nil
 }
 

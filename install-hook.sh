@@ -11,6 +11,36 @@ GITHOOKS_DIR="$HOME/.githooks"
 
 echo "🔧 Installing Assignment Pull Request post-checkout hook..."
 
+# Function to build from source
+function build_from_source() {
+    echo "   Building from source..."
+    
+    # Check if Go is available
+    if ! command -v go >/dev/null 2>&1; then
+        echo "   ❌ Go is required to build from source"
+        echo "      Please install Go or download a pre-built binary"
+        exit 1
+    fi
+    
+    # Create temporary directory
+    TEMP_DIR=$(mktemp -d)
+    cd "$TEMP_DIR"
+    
+    # Clone repository
+    echo "   📦 Cloning repository..."
+    git clone --depth 1 "https://github.com/$REPO.git" .
+    
+    # Build the hook
+    echo "   🔨 Building post-checkout hook..."
+    go build -o "$GITHOOKS_DIR/$HOOK_NAME" ./cmd/githook
+    
+    # Cleanup
+    cd - >/dev/null
+    rm -rf "$TEMP_DIR"
+    
+    echo "   ✅ Built from source"
+}
+
 # Create githooks directory if it doesn't exist
 mkdir -p "$GITHOOKS_DIR"
 
@@ -68,32 +98,3 @@ echo ""
 echo "🗑️  To uninstall:"
 echo "   rm $GITHOOKS_DIR/$HOOK_NAME"
 echo "   git config --global --unset core.hooksPath  # if you want to disable global hooks"
-
-function build_from_source() {
-    echo "   Building from source..."
-    
-    # Check if Go is available
-    if ! command -v go >/dev/null 2>&1; then
-        echo "   ❌ Go is required to build from source"
-        echo "      Please install Go or download a pre-built binary"
-        exit 1
-    fi
-    
-    # Create temporary directory
-    TEMP_DIR=$(mktemp -d)
-    cd "$TEMP_DIR"
-    
-    # Clone repository
-    echo "   📦 Cloning repository..."
-    git clone --depth 1 "https://github.com/$REPO.git" .
-    
-    # Build the hook
-    echo "   🔨 Building post-checkout hook..."
-    go build -o "$GITHOOKS_DIR/$HOOK_NAME" ./cmd/githook
-    
-    # Cleanup
-    cd - >/dev/null
-    rm -rf "$TEMP_DIR"
-    
-    echo "   ✅ Built from source"
-}
