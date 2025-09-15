@@ -34,7 +34,7 @@ func NewProcessor(repositoryRoot string, rootProcessor, assignmentProcessor *reg
 
 	// Validate that assignment patterns have capturing groups
 	for _, pattern := range assignmentPatterns {
-		if !HasCapturingGroups(pattern) {
+		if !hasCapturingGroups(pattern) {
 			return nil, fmt.Errorf("assignment regex '%s' must contain at least one capturing group (e.g., (?P<name>...) or (...)) to extract branch names", pattern.String())
 		}
 	}
@@ -44,14 +44,6 @@ func NewProcessor(repositoryRoot string, rootProcessor, assignmentProcessor *reg
 		rootPattern:       rootProcessor,
 		assignmentPattern: assignmentProcessor,
 	}, nil
-}
-
-// HasCapturingGroups checks if a compiled regex pattern has at least one capturing group (named or unnamed)
-func HasCapturingGroups(regex *regexp.Regexp) bool {
-	names := regex.SubexpNames()
-	// SubexpNames() returns a slice where the first element is always an empty string
-	// for the entire match. If there are more elements, there are capturing groups
-	return len(names) > 1
 }
 
 // ProcessAssignments discovers all assignments and returns assignment info with unique branch names
@@ -369,6 +361,14 @@ func (ap *Processor) extractBranchNameFromPath(assignmentPath string) (string, b
 	}
 
 	return "", false
+}
+
+// hasCapturingGroups checks if a compiled regex pattern has at least one capturing group (named or unnamed)
+func hasCapturingGroups(regex *regexp.Regexp) bool {
+	names := regex.SubexpNames()
+	// SubexpNames() returns a slice where the first element is always an empty string
+	// for the entire match. If there are more elements, there are capturing groups
+	return len(names) > 1
 }
 
 // sanitizeBranchName sanitizes a branch name to match Creator's original behavior
