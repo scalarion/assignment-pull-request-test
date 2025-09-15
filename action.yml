@@ -37,6 +37,12 @@ runs:
         cache: true
         cache-dependency-path: ${{ github.action_path }}/go.sum
 
+    - name: Build assignment-pr-creator
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: |
+        go build -o assignment-pr-creator ./cmd/assignment-pr-creator
+
     - name: Run assignment-pr-creator
       id: create-assignments
       shell: bash
@@ -48,7 +54,7 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github-token }}
         DRY_RUN: ${{ inputs.dry-run }}
       run: |
-        go -C "${{ github.action_path }}" run ./cmd/assignment-pr-creator
+        "${{ github.action_path }}/assignment-pr-creator"
 
 branding:
   icon: git-pull-request
