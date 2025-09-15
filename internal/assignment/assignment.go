@@ -143,8 +143,12 @@ func (ap *Processor) findAssignments() ([]string, error) {
 		if err != nil {
 			return nil
 		}
+		
+		// Normalize path to use forward slashes for pattern matching
+		normalizedPath := filepath.ToSlash(path)
+		
 		for _, assignmentPattern := range assignmentPatterns {
-			if assignmentPattern.MatchString(path) {
+			if assignmentPattern.MatchString(normalizedPath) {
 				assignments = append(assignments, path)
 				break // Don't check other patterns for this path
 			}
@@ -175,12 +179,15 @@ func (ap *Processor) extractBranchNameFromPath(assignmentPath string) (string, b
 		return "", false
 	}
 
+	// Normalize path to use forward slashes for pattern matching
+	normalizedPath := filepath.ToSlash(assignmentPath)
+
 	for _, pattern := range assignmentPatterns {
 		if pattern == nil {
 			continue
 		}
 
-		matches := pattern.FindStringSubmatch(assignmentPath)
+		matches := pattern.FindStringSubmatch(normalizedPath)
 		if matches != nil {
 			names := pattern.SubexpNames()
 			var branchParts []string
