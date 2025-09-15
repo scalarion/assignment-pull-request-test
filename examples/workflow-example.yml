@@ -34,8 +34,7 @@ jobs:
         id: create-prs
         uses: majikmate/assignment-pull-request@main # or specific version tag
         with:
-          assignments-root-regex: "^assignments$"
-          assignment-regex: '^(?P<branch>assignment-\d+)$' # Named groups (recommended)
+          assignment-regex: '^assignments/(?P<branch>assignment-\d+)$' # Named groups (recommended)
           # Alternatives:
           # assignment-regex: '^homework/(hw-\d+)$'  # Unnamed groups
           # assignment-regex: '^homework/(hw-\d+)$,^(?P<branch>assignment-\d+)$'  # Multiple patterns

@@ -45,20 +45,17 @@ DRY_RUN=true GITHUB_TOKEN=fake_token GITHUB_REPOSITORY=owner/repo ./bin/assignme
 
 # Test with named groups pattern
 DRY_RUN=true GITHUB_TOKEN=fake_token GITHUB_REPOSITORY=owner/repo \
-ASSIGNMENTS_ROOT_REGEX="^assignments$" \
-ASSIGNMENT_REGEX="^(?P<branch>assignment-\d+)$" \
+ASSIGNMENT_REGEX="^assignments/(?P<branch>assignment-\d+)$" \
 ./bin/assignment-pr-creator
 
 # Test with unnamed groups pattern  
 DRY_RUN=true GITHUB_TOKEN=fake_token GITHUB_REPOSITORY=owner/repo \
-ASSIGNMENTS_ROOT_REGEX="^homework$" \
 ASSIGNMENT_REGEX="^homework/(hw-\d+)$" \
 ./bin/assignment-pr-creator
 
 # Test with multiple patterns (specific before general)
 DRY_RUN=true GITHUB_TOKEN=fake_token GITHUB_REPOSITORY=owner/repo \
-ASSIGNMENTS_ROOT_REGEX="^assignments$,^homework$" \
-ASSIGNMENT_REGEX="^homework/(hw-\d+)$,^(?P<branch>assignment-\d+)$" \
+ASSIGNMENT_REGEX="^homework/(hw-\d+)$,^assignments/(?P<branch>assignment-\d+)$" \
 ./bin/assignment-pr-creator
 ```
 

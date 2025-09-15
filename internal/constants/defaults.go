@@ -2,9 +2,6 @@ package constants
 
 // Default configuration values for the Assignment Pull Request Creator
 const (
-	// DefaultAssignmentsRootRegex is the default regex pattern for assignment root directories
-	DefaultAssignmentsRootRegex = "^assignments$"
-
 	// DefaultAssignmentRegex is the default regex pattern for assignment folders with named groups
 	DefaultAssignmentRegex = `^(?P<branch>assignment-\d+)$`
 
@@ -25,9 +22,6 @@ const (
 
 	// EnvGitHubRepository is the environment variable for repository name
 	EnvGitHubRepository = "GITHUB_REPOSITORY"
-
-	// EnvAssignmentsRootRegex is the environment variable for assignment root regex patterns
-	EnvAssignmentsRootRegex = "ASSIGNMENTS_ROOT_REGEX"
 
 	// EnvAssignmentRegex is the environment variable for assignment regex patterns
 	EnvAssignmentRegex = "ASSIGNMENT_REGEX"
@@ -74,9 +68,6 @@ const (
 
 // Workflow file YAML keys
 const (
-	// WorkflowAssignmentsRootRegexKey is the YAML key for assignments root regex patterns
-	WorkflowAssignmentsRootRegexKey = "assignments-root-regex"
-
 	// WorkflowAssignmentRegexKey is the YAML key for assignment regex patterns
 	WorkflowAssignmentRegexKey = "assignment-regex"
 )

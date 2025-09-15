@@ -20,12 +20,11 @@ type Info struct {
 // Processor handles assignment discovery and processing
 type Processor struct {
 	repositoryRoot    string
-	rootPattern       *regex.Processor
 	assignmentPattern *regex.Processor
 }
 
-// NewProcessor creates a new Processor with regex pattern processors
-func NewProcessor(repositoryRoot string, rootProcessor, assignmentProcessor *regex.Processor) (*Processor, error) {
+// NewProcessor creates a new Processor with assignment regex patterns
+func NewProcessor(repositoryRoot string, assignmentProcessor *regex.Processor) (*Processor, error) {
 	// Get compiled patterns to validate assignment patterns have capturing groups
 	assignmentPatterns, err := assignmentProcessor.Compiled()
 	if err != nil {
@@ -41,7 +40,6 @@ func NewProcessor(repositoryRoot string, rootProcessor, assignmentProcessor *reg
 
 	return &Processor{
 		repositoryRoot:    repositoryRoot,
-		rootPattern:       rootProcessor,
 		assignmentPattern: assignmentProcessor,
 	}, nil
 }
@@ -115,8 +113,7 @@ func (ap *Processor) findAssignments() ([]string, error) {
 		rootDir = "."
 	}
 
-	// First, find all directories that match the root pattern
-	var rootDirectories []string
+	// Walk the entire directory tree and check each directory against assignment patterns
 	err := filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -136,15 +133,20 @@ func (ap *Processor) findAssignments() ([]string, error) {
 			return nil
 		}
 
-		// Check if this directory matches any root pattern
-		rootPatterns, err := ap.rootPattern.Compiled()
-		if err != nil {
-			return err
+		// Skip the root directory itself
+		if path == rootDir {
+			return nil
 		}
-		for _, rootPattern := range rootPatterns {
-			if rootPattern.MatchString(path) {
-				rootDirectories = append(rootDirectories, path)
-				break // Don't check other root patterns for this path
+
+		// Check if this directory matches any assignment pattern
+		assignmentPatterns, err := ap.assignmentPattern.Compiled()
+		if err != nil {
+			return nil
+		}
+		for _, assignmentPattern := range assignmentPatterns {
+			if assignmentPattern.MatchString(path) {
+				assignments = append(assignments, path)
+				break // Don't check other patterns for this path
 			}
 		}
 
@@ -152,85 +154,13 @@ func (ap *Processor) findAssignments() ([]string, error) {
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("error finding root directories: %w", err)
-	}
-
-	// Now search for assignments within each root directory
-	for _, rootDirectory := range rootDirectories {
-		assignmentsInRoot, err := ap.findAssignmentsInDirectory(rootDirectory)
-		if err != nil {
-			return nil, err
-		}
-		assignments = append(assignments, assignmentsInRoot...)
+		return nil, fmt.Errorf("error finding assignments: %w", err)
 	}
 
 	// Sort assignments
 	sort.Strings(assignments)
 
 	return assignments, nil
-}
-
-// findAssignmentsInDirectory finds assignments within a specific directory
-func (ap *Processor) findAssignmentsInDirectory(rootDir string) ([]string, error) {
-	var assignments []string
-
-	err := filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		// Skip hidden directories and files
-		if strings.HasPrefix(filepath.Base(path), ".") {
-			if info.IsDir() {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-
-		// Only process directories
-		if !info.IsDir() {
-			return nil
-		}
-
-		// Get the relative path from the root directory
-		relPath, err := filepath.Rel(rootDir, path)
-		if err != nil {
-			return err
-		}
-
-		// Skip the root directory itself
-		if relPath == "." {
-			return nil
-		}
-
-		// Normalize path separators to forward slashes
-		relPath = filepath.ToSlash(relPath)
-
-		// Check if this relative path matches any assignment pattern
-		assignmentPatterns, err := ap.assignmentPattern.Compiled()
-		if err != nil {
-			return nil
-		}
-		for _, assignmentPattern := range assignmentPatterns {
-			if assignmentPattern.MatchString(relPath) {
-				assignments = append(assignments, path) // Use full path for the result
-				break                                   // Don't check other patterns for this path
-			}
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		return nil, fmt.Errorf("error walking directory %s: %w", rootDir, err)
-	}
-
-	return assignments, nil
-}
-
-// GetRootRegexStrings returns the root regex patterns as strings
-func (ap *Processor) GetRootRegexStrings() []string {
-	return ap.rootPattern.Patterns()
 }
 
 // GetAssignmentRegexStrings returns the assignment regex patterns as strings
@@ -245,62 +175,12 @@ func (ap *Processor) extractBranchNameFromPath(assignmentPath string) (string, b
 		return "", false
 	}
 
-	// First, find which root directory this assignment belongs to
-	rootPatterns, err := ap.rootPattern.Compiled()
-	if err != nil {
-		return "", false
-	}
-
-	var matchingRootDir string
-	for _, rootPattern := range rootPatterns {
-		// Find the root directory that contains this assignment
-		rootDir := ap.repositoryRoot
-		if rootDir == "" {
-			rootDir = "."
-		}
-
-		err := filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
-
-			if info.IsDir() && rootPattern.MatchString(path) {
-				// Check if the assignment path starts with this root path
-				if strings.HasPrefix(assignmentPath, path) {
-					matchingRootDir = path
-					return filepath.SkipDir // Found it, no need to continue
-				}
-			}
-			return nil
-		})
-
-		if err != nil {
-			continue
-		}
-		if matchingRootDir != "" {
-			break
-		}
-	}
-
-	if matchingRootDir == "" {
-		return "", false
-	}
-
-	// Get the relative path from the matching root directory
-	relPath, err := filepath.Rel(matchingRootDir, assignmentPath)
-	if err != nil {
-		return "", false
-	}
-
-	// Normalize path separators to forward slashes
-	relPath = filepath.ToSlash(relPath)
-
 	for _, pattern := range assignmentPatterns {
 		if pattern == nil {
 			continue
 		}
 
-		matches := pattern.FindStringSubmatch(relPath)
+		matches := pattern.FindStringSubmatch(assignmentPath)
 		if matches != nil {
 			names := pattern.SubexpNames()
 			var branchParts []string
@@ -369,6 +249,12 @@ func hasCapturingGroups(regex *regexp.Regexp) bool {
 	// SubexpNames() returns a slice where the first element is always an empty string
 	// for the entire match. If there are more elements, there are capturing groups
 	return len(names) > 1
+}
+
+// HasCapturingGroups checks if a compiled regex pattern has at least one capturing group (named or unnamed)
+// This is a public wrapper for the internal hasCapturingGroups function used by tests
+func HasCapturingGroups(regex *regexp.Regexp) bool {
+	return hasCapturingGroups(regex)
 }
 
 // sanitizeBranchName sanitizes a branch name to match Creator's original behavior

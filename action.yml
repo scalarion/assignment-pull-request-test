@@ -10,10 +10,6 @@ inputs:
     description: "Default branch to create pull requests against"
     required: false
     default: "main"
-  assignments-root-regex:
-    description: "Comma-separated list of regular expressions to match assignment root folder paths. Use \\, to escape literal commas within patterns."
-    required: false
-    default: "^assignments$"
   assignment-regex:
     description: "Comma-separated list of regular expressions to match assignment paths and extract branch names using capturing groups. Use (?P<name>...) for named groups or (...) for unnamed groups. Named groups take priority when both are present. Use \\, to escape literal commas within patterns."
     required: false
@@ -54,7 +50,6 @@ runs:
       shell: bash
       env:
         DEFAULT_BRANCH: ${{ inputs.default-branch }}
-        ASSIGNMENTS_ROOT_REGEX: ${{ inputs.assignments-root-regex }}
         ASSIGNMENT_REGEX: ${{ inputs.assignment-regex }}
         GITHUB_REPOSITORY: ${{ github.repository }}
         GITHUB_TOKEN: ${{ inputs.github-token }}

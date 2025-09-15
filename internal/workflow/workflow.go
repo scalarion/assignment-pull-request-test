@@ -26,21 +26,14 @@ type Job struct {
 
 // Processor handles workflow file parsing and pattern extraction
 type Processor struct {
-	rootPattern       *regex.Processor
 	assignmentPattern *regex.Processor
 }
 
 // New creates a new workflow processor
 func New() *Processor {
 	return &Processor{
-		rootPattern:       regex.New(),
 		assignmentPattern: regex.New(),
 	}
-}
-
-// RootPattern returns the regex processor for root patterns
-func (p *Processor) RootPattern() *regex.Processor {
-	return p.rootPattern
 }
 
 // AssignmentPattern returns the regex processor for assignment patterns
@@ -138,13 +131,6 @@ func (p *Processor) parseFile(filePath string) error {
 	for _, job := range config.Jobs {
 		if p.isAssignmentAction(job.Uses) {
 			if with := job.With; with != nil {
-				// Extract root patterns
-				if rootPatterns, ok := with[constants.WorkflowAssignmentsRootRegexKey]; ok {
-					if rootStr, ok := rootPatterns.(string); ok {
-						p.rootPattern.AddCommaSeparated(rootStr)
-					}
-				}
-
 				// Extract assignment patterns
 				if assignmentPatterns, ok := with[constants.WorkflowAssignmentRegexKey]; ok {
 					if assignmentStr, ok := assignmentPatterns.(string); ok {

@@ -54,14 +54,13 @@ GITHUB_TOKEN=your_token GITHUB_REPOSITORY=owner/repo make run-live
 
 ### Environment Variables
 
-| Variable                 | Default                        | Description                                                               |
-| ------------------------ | ------------------------------ | ------------------------------------------------------------------------- |
-| `GITHUB_TOKEN` ✅        | -                              | GitHub personal access token                                              |
-| `GITHUB_REPOSITORY` ✅   | -                              | Repository name (`owner/repo`)                                            |
-| `ASSIGNMENTS_ROOT_REGEX` | `^assignments$`                | Comma-separated patterns for assignment root directories                  |
-| `ASSIGNMENT_REGEX`       | `^(?P<branch>assignment-\d+)$` | Comma-separated patterns with capturing groups for branch name extraction |
-| `DEFAULT_BRANCH`         | `main`                         | Default branch name                                                       |
-| `DRY_RUN`                | `false`                        | Enable simulation mode                                                    |
+| Variable               | Default                        | Description                                                               |
+| ---------------------- | ------------------------------ | ------------------------------------------------------------------------- |
+| `GITHUB_TOKEN` ✅      | -                              | GitHub personal access token                                              |
+| `GITHUB_REPOSITORY` ✅ | -                              | Repository name (`owner/repo`)                                            |
+| `ASSIGNMENT_REGEX`     | `^(?P<branch>assignment-\d+)$` | Comma-separated patterns with capturing groups for branch name extraction |
+| `DEFAULT_BRANCH`       | `main`                         | Default branch name                                                       |
+| `DRY_RUN`              | `false`                        | Enable simulation mode                                                    |
 
 **Note**: Use `\,` to escape literal commas within regex patterns.
 
@@ -71,8 +70,7 @@ GITHUB_TOKEN=your_token GITHUB_REPOSITORY=owner/repo make run-live
 - uses: majikmate/assignment-pull-request@v1
   with:
       github-token: ${{ secrets.GITHUB_TOKEN }}
-      assignments-root-regex: "^assignments$,^homework$,^labs$"
-      assignment-regex: "^(?P<branch>assignment-\\d+)$,^(?P<subject>[^/]+)/(?P<number>\\d+)-assignment-(?P<id>\\d+)$"
+      assignment-regex: "^assignments/(?P<branch>assignment-\\d+)$,^homework/(?P<subject>[^/]+)/(?P<number>\\d+)-assignment-(?P<id>\\d+)$"
       default-branch: "main"
       dry-run: "false"
 ```
@@ -82,16 +80,14 @@ GITHUB_TOKEN=your_token GITHUB_REPOSITORY=owner/repo make run-live
 ### Basic Patterns
 
 ```bash
-# Single pattern
-ASSIGNMENTS_ROOT_REGEX="^assignments$"
-ASSIGNMENT_REGEX="^(?P<branch>assignment-\d+)$"
+# Single pattern - full path from repository root
+ASSIGNMENT_REGEX="^assignments/(?P<branch>assignment-\d+)$"
 
-# Multiple patterns (comma-separated)
-ASSIGNMENTS_ROOT_REGEX="^assignments$,^homework$,^labs$"
-ASSIGNMENT_REGEX="^(?P<branch>assignment-\d+)$,^homework/(hw-\d+)$"
+# Multiple patterns (comma-separated) - full paths from repository root
+ASSIGNMENT_REGEX="^assignments/(?P<branch>assignment-\d+)$,^homework/(hw-\d+)$,^labs/(?P<branch>lab-\d+)$"
 
 # Escaped commas in patterns
-ASSIGNMENT_REGEX="^(?P<options>red\,green\,blue)$,^(?P<list>a\,b\,c)$"
+ASSIGNMENT_REGEX="^assignments/(?P<options>red\,green\,blue)$,^homework/(?P<list>a\,b\,c)$"
 ```
 
 ### Advanced Patterns
@@ -167,8 +163,7 @@ DRY_RUN=true make run
 
 # Test specific patterns
 DRY_RUN=true \
-ASSIGNMENTS_ROOT_REGEX="^assignments$" \
-ASSIGNMENT_REGEX="^(?P<branch>assignment-\d+)$" \
+ASSIGNMENT_REGEX="^assignments/(?P<branch>assignment-\d+)$" \
 make run
 ```
 
@@ -235,8 +230,8 @@ chmod +x ~/.githooks/post-checkout
 
 1. **Workflow Detection**: Scans `.github/workflows/` for
    assignment-pull-request action usage
-2. **Pattern Extraction**: Extracts `assignments-root-regex` and
-   `assignment-regex` from workflow configurations
+2. **Pattern Extraction**: Extracts `assignment-regex` from workflow
+   configurations
 3. **Branch Matching**: When you checkout a branch, checks if it matches any
    assignment folder patterns
 4. **Sparse Checkout**: If matched, configures Git to show only the relevant
@@ -246,7 +241,7 @@ chmod +x ~/.githooks/post-checkout
 
 ```bash
 # You have assignments/assignment-1/, assignments/assignment-2/ folders
-# Workflow uses: assignment-regex: "^(?P<branch>assignment-\d+)$"
+# Workflow uses: assignment-regex: "^assignments/(?P<branch>assignment-\d+)$"
 
 git checkout assignment-1  # Hook runs automatically
 # Git sparse-checkout now shows:

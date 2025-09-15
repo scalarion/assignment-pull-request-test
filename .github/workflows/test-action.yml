@@ -3,10 +3,6 @@ name: Test Action
 on:
   workflow_dispatch:
     inputs:
-      assignments-root-regex:
-        description: "Regex pattern for assignment root folders"
-        required: false
-        default: "^test/fixtures/assignments$, ^test/fixtures/bootcamp$"
       assignment-regex:
         description: "Regex pattern for assignment folders"
         required: false
@@ -56,7 +52,6 @@ jobs:
         id: assignment-pr
         uses: ./
         with:
-          assignments-root-regex: ${{ github.event.inputs.assignments-root-regex || '^assignments$' }}
           assignment-regex: ${{ github.event.inputs.assignment-regex || '^assignment-\d+$' }}
           default-branch: ${{ github.event.inputs.default-branch || 'main' }}
           dry-run: ${{ github.event.inputs.dry-run || 'true' }}
@@ -67,7 +62,6 @@ jobs:
           echo "## 📊 Assignment PR Creator Results"
           echo ""
           echo "### Configuration:"
-          echo "- Root Regex: \`${{ github.event.inputs.assignments-root-regex || '^assignments$' }}\`"
           echo "- Assignment Regex: \`${{ github.event.inputs.assignment-regex || '^assignment-\d+$' }}\`"
           echo "- Default Branch: \`${{ github.event.inputs.default-branch || 'main' }}\`"
           echo "- Dry Run: \`${{ github.event.inputs.dry-run || 'true' }}\`"

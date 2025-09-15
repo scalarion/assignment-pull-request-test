@@ -52,17 +52,16 @@ func (p *Processor) SparseCheckout() error {
 	}
 
 	// Get pattern processors from workflow
-	rootPattern := workflowProcessor.RootPattern()
 	assignmentPattern := workflowProcessor.AssignmentPattern()
 
 	// Skip operations if no patterns found
-	if len(rootPattern.Patterns()) == 0 || len(assignmentPattern.Patterns()) == 0 {
+	if len(assignmentPattern.Patterns()) == 0 {
 		fmt.Println("No assignment patterns found in workflow files, skipping sparse-checkout configuration")
 		return nil
 	}
 
 	// Create assignment processor
-	assignmentProcessor, err := assignment.NewProcessor(p.repositoryRoot, rootPattern, assignmentPattern)
+	assignmentProcessor, err := assignment.NewProcessor(p.repositoryRoot, assignmentPattern)
 	if err != nil {
 		return fmt.Errorf("failed to create assignment processor: %w", err)
 	}

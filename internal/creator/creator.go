@@ -21,7 +21,6 @@ import (
 // Config holds configuration for the PR creator
 type Config struct {
 	gitHubToken       string
-	rootPattern       *regex.Processor
 	assignmentPattern *regex.Processor
 	repositoryName    string
 	defaultBranch     string
@@ -29,12 +28,11 @@ type Config struct {
 }
 
 // NewConfig creates a new Config with the given parameters
-func NewConfig(gitHubToken, repositoryName, defaultBranch string, assignmentsRootRegex, assignmentRegex []string, dryRun bool) *Config {
+func NewConfig(gitHubToken, repositoryName, defaultBranch string, assignmentRegex []string, dryRun bool) *Config {
 	return &Config{
 		gitHubToken:       gitHubToken,
 		repositoryName:    repositoryName,
 		defaultBranch:     defaultBranch,
-		rootPattern:       regex.NewWithPatterns(assignmentsRootRegex),
 		assignmentPattern: regex.NewWithPatterns(assignmentRegex),
 		dryRun:            dryRun,
 	}
@@ -46,7 +44,6 @@ func NewConfigFromEnv() *Config {
 		gitHubToken:       os.Getenv(constants.EnvGitHubToken),
 		repositoryName:    os.Getenv(constants.EnvGitHubRepository),
 		defaultBranch:     getEnvWithDefault(constants.EnvDefaultBranch, constants.DefaultBranch),
-		rootPattern:       regex.NewFromCommaSeparated(getEnvWithDefault(constants.EnvAssignmentsRootRegex, constants.DefaultAssignmentsRootRegex)),
 		assignmentPattern: regex.NewFromCommaSeparated(getEnvWithDefault(constants.EnvAssignmentRegex, constants.DefaultAssignmentRegex)),
 		dryRun:            isDryRun(getEnvWithDefault(constants.EnvDryRun, constants.DefaultDryRun)),
 	}
@@ -73,7 +70,7 @@ func NewWithConfig(config *Config) (*Creator, error) {
 	}
 
 	// Create assignment processor with pattern processors from config
-	assignmentProc, err := assignment.NewProcessor("", config.rootPattern, config.assignmentPattern)
+	assignmentProc, err := assignment.NewProcessor("", config.assignmentPattern)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create assignment processor: %w", err)
 	}
@@ -239,7 +236,6 @@ type branchToProcess struct {
 
 // processAssignments processes all found assignments and creates branches/PRs as needed
 func (c *Creator) processAssignments() error {
-	fmt.Printf("Scanning workspace for assignment roots matching '%s'\n", c.assignmentProcessor.GetRootRegexStrings())
 	fmt.Printf("Looking for assignments matching '%s'\n", c.assignmentProcessor.GetAssignmentRegexStrings())
 
 	// Use assignment processor to discover and validate assignments
@@ -433,7 +429,6 @@ func (c *Creator) Run() error {
 		fmt.Println("🔄 LIVE MODE: Using local git operations with atomic remote push")
 	}
 	fmt.Printf("Repository: %s\n", c.config.repositoryName)
-	fmt.Printf("Assignments root regex: %s\n", c.config.rootPattern.Patterns())
 	fmt.Printf("Assignment regex: %s\n", c.config.assignmentPattern.Patterns())
 	fmt.Printf("Default branch: %s\n", c.config.defaultBranch)
 	fmt.Printf("Dry run mode: %t\n", c.config.dryRun)
