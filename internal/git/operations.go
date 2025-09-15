@@ -133,6 +133,48 @@ func (o *Operations) PushBranch(branchName string) error {
 	)
 }
 
+// MergeBranchToMain merges a specific branch into main
+func (o *Operations) MergeBranchToMain(branchName string) error {
+	// First switch to main
+	if err := o.SwitchToBranch("main"); err != nil {
+		return err
+	}
+
+	// Merge the branch
+	return o.commander.RunCommand(
+		fmt.Sprintf("git merge %s --no-ff", branchName),
+		fmt.Sprintf("Merge branch '%s' into main", branchName),
+	)
+}
+
+// UpdateBranchFromMain updates a branch with the latest changes from main
+func (o *Operations) UpdateBranchFromMain(branchName string) error {
+	// Switch to the branch
+	if err := o.SwitchToBranch(branchName); err != nil {
+		return err
+	}
+
+	// Merge main into this branch
+	return o.commander.RunCommand(
+		"git merge main --no-ff",
+		fmt.Sprintf("Update branch '%s' with latest changes from main", branchName),
+	)
+}
+
+// PullMainFromRemote pulls the latest changes from remote main
+func (o *Operations) PullMainFromRemote() error {
+	// Switch to main first
+	if err := o.SwitchToBranch("main"); err != nil {
+		return err
+	}
+
+	// Pull latest changes
+	return o.commander.RunCommand(
+		"git pull origin main",
+		"Pull latest changes from remote main",
+	)
+}
+
 // GetLocalBranches returns a map of local branch names
 func (o *Operations) GetLocalBranches() (map[string]bool, error) {
 	branches := make(map[string]bool)

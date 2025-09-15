@@ -201,22 +201,11 @@ func (c *Creator) createPullRequest(assignmentPath, branchName string) error {
 		Title:  title,
 	})
 
-	// Add PR link to README after the branch has been pushed and merge the PR
+	// Add PR link to README after the branch has been pushed
 	if err := c.addPullRequestLinkAfterPush(assignmentPath, branchName, prNumber); err != nil {
 		fmt.Printf("Warning: failed to add PR link after push for %s: %v\n", prNumber, err)
-		// Continue with merge even if PR link addition fails
+		// Continue even if PR link addition fails
 	}
-
-	// TODO: Auto-merge is temporarily disabled due to "Head branch is out of date" errors
-	// The PR links are successfully added to README files, so the core functionality works
-	// Auto-merge can be re-enabled once we solve the timing issue with GitHub API
-	/*
-		// Merge the PR after the link has been added and pushed
-		if err := c.mergePullRequestAfterLink(prNumber, title); err != nil {
-			fmt.Printf("Warning: failed to merge PR %s: %v\n", prNumber, err)
-			// Don't return error - PR was created successfully
-		}
-	*/
 
 	fmt.Printf("✅ Created and updated PR %s with PR link in README\n", prNumber)
 
@@ -439,11 +428,84 @@ func (c *Creator) processAssignments() error {
 				}
 			}
 		}
+
+		// Phase 5: Merge all branches to main
+		if err := c.mergeAllBranchesToMain(); err != nil {
+			fmt.Printf("❌ Failed to merge branches to main: %v\n", err)
+			return err
+		}
+
+		// Phase 6: Sync all branches with main
+		if err := c.syncAllBranchesWithMain(); err != nil {
+			fmt.Printf("❌ Failed to sync branches with main: %v\n", err)
+			return err
+		}
 	} else {
 		fmt.Println("\n=== No new assignments to process ===")
 		fmt.Println("All assignments already have PRs")
 	}
 
+	return nil
+}
+
+// mergeAllBranchesToMain merges all created branches to main
+func (c *Creator) mergeAllBranchesToMain() error {
+	if len(c.createdBranches) == 0 {
+		fmt.Println("No branches to merge")
+		return nil
+	}
+
+	fmt.Printf("\n=== Phase 5: Merging all branches to main ===\n")
+
+	// Pull latest changes from remote main first
+	if err := c.gitOps.PullMainFromRemote(); err != nil {
+		fmt.Printf("Warning: failed to pull latest main: %v\n", err)
+	}
+
+	// Merge each branch into main
+	for _, branchName := range c.createdBranches {
+		fmt.Printf("Merging branch '%s' into main...\n", branchName)
+		if err := c.gitOps.MergeBranchToMain(branchName); err != nil {
+			fmt.Printf("❌ Failed to merge branch '%s': %v\n", branchName, err)
+			continue
+		}
+		fmt.Printf("✅ Merged branch '%s' into main\n", branchName)
+	}
+
+	// Push updated main to remote
+	if err := c.gitOps.PushBranch("main"); err != nil {
+		return fmt.Errorf("failed to push updated main: %w", err)
+	}
+
+	fmt.Printf("✅ All branches merged to main and pushed to remote\n")
+	return nil
+}
+
+// syncAllBranchesWithMain updates all branches with the latest main
+func (c *Creator) syncAllBranchesWithMain() error {
+	if len(c.createdBranches) == 0 {
+		fmt.Println("No branches to sync")
+		return nil
+	}
+
+	fmt.Printf("\n=== Phase 6: Syncing all branches with main ===\n")
+
+	// Update each branch with the latest main
+	for _, branchName := range c.createdBranches {
+		fmt.Printf("Updating branch '%s' with latest main...\n", branchName)
+		if err := c.gitOps.UpdateBranchFromMain(branchName); err != nil {
+			fmt.Printf("❌ Failed to update branch '%s': %v\n", branchName, err)
+			continue
+		}
+		fmt.Printf("✅ Updated branch '%s' with latest main\n", branchName)
+	}
+
+	// Push all updated branches to remote
+	if err := c.gitOps.PushAllBranches(); err != nil {
+		return fmt.Errorf("failed to push updated branches: %w", err)
+	}
+
+	fmt.Printf("✅ All branches synchronized with main and pushed to remote\n")
 	return nil
 }
 
