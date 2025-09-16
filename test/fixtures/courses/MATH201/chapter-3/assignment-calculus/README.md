@@ -65,3 +65,6 @@ engineering, and economics.
 - Problem-solving approach: 25%
 - Programming implementation: 20%
 - Written communication: 15%
+
+---
+<sub>*Augmented by the [Assignment Pull Request](https://github.com/majikmate/assignment-pull-request) action.*</sub>
