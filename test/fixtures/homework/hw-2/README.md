@@ -1,3 +1,7 @@
+# Overview
+
+Please continue work on [Pull Request #11: hw-2](https://github.com/scalarion/assignment-pull-request-test/pull/11)
+
 # hw-2
 
 ## Homework Assignment 2: Advanced Problem Solving
@@ -27,3 +31,6 @@ Here are examples of good and bad solutions:
 - Follow the workflow process
 - Ensure your solution matches the "good solution" pattern
 - Avoid patterns shown in the "bad solution" example
+
+---
+<sub>*Augmented by the [Assignment Pull Request](https://github.com/majikmate/assignment-pull-request) action.*</sub>
