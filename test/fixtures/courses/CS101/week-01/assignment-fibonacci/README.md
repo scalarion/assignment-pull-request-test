@@ -56,3 +56,6 @@ different programming paradigms.
 - Performance analysis: 30%
 - Code quality: 20%
 - Documentation: 10%
+
+---
+<sub>*Augmented by the [Assignment Pull Request](https://github.com/majikmate/assignment-pull-request) action.*</sub>
