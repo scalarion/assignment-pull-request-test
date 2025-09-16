@@ -60,3 +60,6 @@ programming solutions.
 - Dynamic programming: 30%
 - Testing and validation: 20%
 - Analysis and documentation: 10%
+
+---
+<sub>*Augmented by the [Assignment Pull Request](https://github.com/majikmate/assignment-pull-request) action.*</sub>
