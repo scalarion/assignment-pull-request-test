@@ -82,3 +82,6 @@ portfolio website.
 - Accessibility compliance: 25%
 - Content quality and completeness: 25%
 - Code organization and comments: 20%
+
+---
+<sub>*Augmented by the [Assignment Pull Request](https://github.com/majikmate/assignment-pull-request) action.*</sub>
