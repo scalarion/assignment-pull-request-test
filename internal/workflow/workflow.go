@@ -82,6 +82,12 @@ func (p *Processor) findFiles() ([]string, error) {
 	}
 
 	for _, dir := range workflowDirs {
+		// Check if directory exists
+		if _, err := os.Stat(dir); os.IsNotExist(err) {
+			continue
+		}
+
+		// Walk the directory to find YAML files
 		err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
