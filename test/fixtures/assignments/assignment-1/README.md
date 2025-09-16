@@ -10,4 +10,12 @@ below before starting.
 Follow the steps outlined in the diagram above to complete this assignment
 successfully.
 
+```mermaid
+graph TD;
+    A-->B;
+    A-->C;
+    B-->D;
+    C-->D;
+```
+
 ---
