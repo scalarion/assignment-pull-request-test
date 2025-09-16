@@ -100,3 +100,6 @@ authentication, CRUD operations, and data persistence.
 - Code structure and quality: 25%
 - Testing coverage: 20%
 - Documentation: 20%
+
+---
+<sub>*Augmented by the [Assignment Pull Request](https://github.com/majikmate/assignment-pull-request) action.*</sub>
