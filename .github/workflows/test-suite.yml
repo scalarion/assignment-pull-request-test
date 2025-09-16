@@ -18,7 +18,6 @@ jobs:
   test-quality:
     name: Code Quality and Security
     runs-on: ubuntu-latest
-    if: false # Skip for now
 
     steps:
       - name: Checkout repository
@@ -59,7 +58,7 @@ jobs:
   test-cross-platform:
     name: Cross-Platform Testing
     runs-on: ${{ matrix.os }}
-    # needs: test-quality
+    needs: test-quality
     strategy:
       fail-fast: false
       matrix:
