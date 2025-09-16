@@ -1,124 +1,38 @@
-name: Test Action
+name: Test Assignment PR Action
 
 on:
   workflow_dispatch:
-    inputs:
-      assignment-regex:
-        description: "Regex pattern for assignment folders"
-        required: false
-        default: '^test/fixtures/assignments/(assignment-\d+)$, ^test/fixtures/assignments/([^/]+)/([^/]+)$'
-      default-branch:
-        description: "Default branch for pull requests"
-        required: false
-        default: "main"
-      dry-run:
-        description: "Run in dry-run mode (no actual changes)"
-        required: false
-        default: true
-        type: choice
-        options:
-          - "true"
-          - "false"
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
 
 concurrency:
   group: ${{ github.repository }}
   cancel-in-progress: false
 
 jobs:
-  test-action:
+  assignment-pull-request:
+    name: Test Real Assignment Processing
     runs-on: ubuntu-latest
-    name: Test Assignment PR Creator Action
-    permissions:
-      contents: write
-      pull-requests: write
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
-
-      - name: Set up Go
-        uses: actions/setup-go@v6
         with:
-          go-version-file: go.mod
-          cache: true
+          fetch-depth: 0
 
-      - name: Cache Go modules
-        uses: actions/cache@v4
+      - name: Run assignment PR creator
+        uses: majikmate/assignment-pull-request@main
         with:
-          path: |
-            ~/go/pkg/mod
-            ~/.cache/go-build
-          key: ${{ runner.os }}-go-action-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-action-
-            ${{ runner.os }}-go-
-
-      - name: Install dependencies
-        run: go mod download
-
-      - name: Cache golangci-lint
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/golangci-lint
-          key: ${{ runner.os }}-golangci-lint-${{ hashFiles('.golangci.yml') }}
-          restore-keys: |
-            ${{ runner.os }}-golangci-lint-
-
-      - name: Install golangci-lint
-        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-
-      - name: Create coverage directory
-        run: mkdir -p coverage
-
-      - name: Run comprehensive sanity checks
-        run: make check
-
-      - name: Run Assignment PR Creator
-        id: assignment-pr
-        uses: ./
-        with:
-          assignment-regex: ${{ github.event.inputs.assignment-regex || '^test/fixtures/assignments/(assignment-\d+)$' }}
-          default-branch: ${{ github.event.inputs.default-branch || 'main' }}
-          dry-run: ${{ github.event.inputs.dry-run || 'true' }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Display results
-        run: |
-          echo "## 📊 Assignment PR Creator Results"
-          echo ""
-          echo "### Configuration:"
-          echo "- Assignment Regex: \`${{ github.event.inputs.assignment-regex || '^test/fixtures/assignments/(assignment-\d+)$' }}\`"
-          echo "- Default Branch: \`${{ github.event.inputs.default-branch || 'main' }}\`"
-          echo "- Dry Run: \`${{ github.event.inputs.dry-run || 'true' }}\`"
-          echo ""
-
-          # Get outputs safely
-          BRANCHES='${{ steps.assignment-pr.outputs.created-branches || '[]' }}'
-          PRS='${{ steps.assignment-pr.outputs.created-pull-requests || '[]' }}'
-
-          # Count items
-          BRANCH_COUNT=$(echo "$BRANCHES" | jq 'length // 0' 2>/dev/null || echo "0")
-          PR_COUNT=$(echo "$PRS" | jq 'length // 0' 2>/dev/null || echo "0")
-
-          echo "### Summary:"
-          echo "- **Branches created:** $BRANCH_COUNT"
-          echo "- **Pull requests created:** $PR_COUNT"
-
-          # List details if available
-          if [ "$BRANCH_COUNT" -gt 0 ] && [ "$BRANCHES" != "[]" ]; then
-            echo ""
-            echo "### 🌿 Created Branches:"
-            echo "$BRANCHES" | jq -r '.[] // empty' | sed 's/^/- `/' | sed 's/$/`/'
-          fi
-
-          if [ "$PR_COUNT" -gt 0 ] && [ "$PRS" != "[]" ]; then
-            echo ""
-            echo "### 🔄 Created Pull Requests:"
-            echo "$PRS" | jq -r '.[] // empty' | sed 's/^/- #/'
-          fi
-
-          echo ""
-          if [ "${{ github.event.inputs.dry-run || 'true' }}" = "true" ]; then
-            echo "🔍 **Dry run completed** - No actual changes were made"
-          else
-            echo "✅ **Live run completed** - Changes were applied to repository"
-          fi
+          assignment-regex: >
+            ^test/fixtures/assignments/(assignment-[\d]+)$,
+            ^test/fixtures/homework/(hw-[\d]+)$,
+            ^test/fixtures/labs/(lab-[\d]+)$,
+            ^test/fixtures/bootcamp/(.+/assignment-[\w\-]+)$,
+            ^test/fixtures/courses/(.+/assignment-[\w\-]+)$
+          default-branch: main
+          dry-run: "no"
