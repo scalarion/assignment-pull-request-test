@@ -43,7 +43,7 @@ func (p *Processor) SparseCheckout() error {
 
 	// Check if git is initialized
 	if _, err := os.Stat(filepath.Join(p.repositoryRoot, ".git")); os.IsNotExist(err) {
-		return fmt.Errorf("not a git repository (no .git directory found at %s)", p.repositoryRoot)
+		return nil
 	}
 
 	// change to the repository root directory
