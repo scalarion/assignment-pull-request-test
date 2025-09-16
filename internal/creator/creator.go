@@ -202,7 +202,7 @@ func (c *Creator) createPullRequest(assignmentPath, branchName string) error {
 	})
 
 	// Add PR link to README after the branch has been pushed
-	if err := c.addPullRequestLinkAfterPush(assignmentPath, branchName, prNumber); err != nil {
+	if err := c.addPullRequestLink(assignmentPath, branchName, prNumber); err != nil {
 		fmt.Printf("Warning: failed to add PR link after push for %s: %v\n", prNumber, err)
 		// Continue even if PR link addition fails
 	}
@@ -212,8 +212,8 @@ func (c *Creator) createPullRequest(assignmentPath, branchName string) error {
 	return nil
 }
 
-// addPullRequestLinkAfterPush adds PR link to README after the branch has been pushed
-func (c *Creator) addPullRequestLinkAfterPush(assignmentPath, branchName, prNumber string) error {
+// addPullRequestLink adds PR link to README after the branch has been pushed
+func (c *Creator) addPullRequestLink(assignmentPath, branchName, prNumber string) error {
 	// First, switch to the correct branch
 	if err := c.gitOps.SwitchToBranch(branchName); err != nil {
 		return fmt.Errorf("failed to switch to branch %s: %w", branchName, err)
@@ -228,19 +228,6 @@ func (c *Creator) addPullRequestLinkAfterPush(assignmentPath, branchName, prNumb
 	// Push only the specific branch to avoid conflicts with main
 	if err := c.gitOps.PushBranch(branchName); err != nil {
 		fmt.Printf("Warning: failed to push branch %s with PR link update: %v\n", branchName, err)
-		return err
-	}
-
-	return nil
-}
-
-// mergePullRequestAfterLink merges the PR after the link has been added and pushed
-func (c *Creator) mergePullRequestAfterLink(prNumber, title string) error {
-	// Automatically merge the pull request
-	// Note: GitHub automatically closes merged PRs, so "keeping it open" after merge is not possible
-	// The PR will be merged and show as "merged" status instead of "open"
-	if err := c.githubClient.MergePullRequest(prNumber, title); err != nil {
-		fmt.Printf("Warning: failed to auto-merge pull request %s: %v\n", prNumber, err)
 		return err
 	}
 
