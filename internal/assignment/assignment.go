@@ -74,6 +74,11 @@ func (ap *Processor) ProcessAssignments() ([]Info, error) {
 		} 
 	}
 
+	// Validate branch name uniqueness before returning
+	if err := ap.validateBranchNameUniqueness(results); err != nil {
+		return nil, err
+	}
+
 	return results, nil
 }
 
