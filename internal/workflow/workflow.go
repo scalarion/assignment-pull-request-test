@@ -51,47 +51,19 @@ func (p *Processor) AssignmentPattern() *regex.Processor {
 
 // ParseAllFiles finds and parses all workflow files
 func (p *Processor) ParseAllFiles() error {
-	fmt.Printf("📄 Starting workflow file parsing...\n")
-
 	workflowFiles, err := p.findFiles()
 	if err != nil {
 		return fmt.Errorf("error finding workflow files: %w", err)
 	}
 
-       
-	for i, file := range workflowFiles {
-		fmt.Printf("  %d. %s\n", i+1, file)
-	}
-
 	if len(workflowFiles) == 0 {
-		fmt.Printf("Warning: No workflow files found in common directories\n")
 		return nil
 	}
 
-	parsedCount := 0
-	skippedCount := 0
-
 	for _, file := range workflowFiles {
-               
 		if err := p.parseFile(file); err != nil {
-			fmt.Printf("  ⚠️  Skipped %s (parse error: %v)\n", file, err)
-			skippedCount++
 			// Continue with other files if one fails
 			continue
-		}
-		fmt.Printf("  ✅ Successfully parsed %s\n", file)
-		parsedCount++
-	}
-
-	fmt.Printf("📊 Workflow parsing summary:\n")
-	fmt.Printf("  - Parsed: %d files\n", parsedCount)
-	fmt.Printf("  - Skipped: %d files\n", skippedCount)
-	fmt.Printf("  - Total patterns found: %d\n", len(p.assignmentPattern.Patterns()))
-
-	if len(p.assignmentPattern.Patterns()) > 0 {
-		fmt.Printf("  - Assignment regex patterns:\n")
-		for i, pattern := range p.assignmentPattern.Patterns() {
-			fmt.Printf("    %d. %s\n", i+1, pattern)
 		}
 	}
 
@@ -100,7 +72,7 @@ func (p *Processor) ParseAllFiles() error {
 
 // findFiles finds all GitHub Actions workflow files in the repository
 func (p *Processor) findFiles() ([]string, error) {
-       
+
 	var workflowFiles []string
 
 	// Check common workflow directories
@@ -109,20 +81,9 @@ func (p *Processor) findFiles() ([]string, error) {
 		constants.GitHubWorkflowTemplatesDir,
 	}
 
-       
-
 	for _, dir := range workflowDirs {
-               
-		if _, err := os.Stat(dir); os.IsNotExist(err) {
-			fmt.Printf("  - Directory does not exist: %s\n", dir)
-			continue
-		}
-		fmt.Printf("  - Directory exists: %s\n", dir)
-
-		fileCount := 0
 		err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
-				fmt.Printf("  - Error walking path %s: %v\n", path, err)
 				return err
 			}
 
@@ -134,10 +95,6 @@ func (p *Processor) findFiles() ([]string, error) {
 			ext := strings.ToLower(filepath.Ext(path))
 			if ext == constants.YamlExtension || ext == constants.YamlAltExtension {
 				workflowFiles = append(workflowFiles, path)
-				fileCount++
-				fmt.Printf("    + Found workflow file: %s\n", path)
-			} else {
-				fmt.Printf("    - Skipped non-YAML file: %s\n", path)
 			}
 
 			return nil
@@ -146,11 +103,8 @@ func (p *Processor) findFiles() ([]string, error) {
 		if err != nil {
 			return nil, fmt.Errorf("error walking workflow directory %s: %w", dir, err)
 		}
-
-		fmt.Printf("  - Found %d workflow files in %s\n", fileCount, dir)
 	}
 
-       
 	return workflowFiles, nil
 }
 
@@ -162,7 +116,7 @@ func (p *Processor) isAssignmentAction(uses string) bool {
 
 	// Check for local action reference
 	if uses == "./" || uses == "." {
-               
+
 		return true
 	}
 
@@ -170,118 +124,66 @@ func (p *Processor) isAssignmentAction(uses string) bool {
 	// This is a heuristic - in practice, you might want to be more specific
 	isMatch := strings.Contains(uses, constants.ActionName)
 	if isMatch {
-               
+
 	}
 	return isMatch
 }
 
 // parseFile parses a single workflow file and extracts patterns
 func (p *Processor) parseFile(filePath string) error {
-       
+
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return fmt.Errorf("error reading workflow file %s: %w", filePath, err)
 	}
-
-       
 
 	var config Action
 	if err := yaml.Unmarshal(data, &config); err != nil {
 		return fmt.Errorf("error parsing workflow file %s: %w", filePath, err)
 	}
 
-       
-
-	jobsWithAssignmentAction := 0
-	patternsExtracted := 0
-
 	// Look for jobs that use the assignment action
-	for jobName, job := range config.Jobs {
-		fmt.Printf("      Job '%s': uses='%s'\n", jobName, job.Uses)
-
+	for _, job := range config.Jobs {
 		// Case 1: Reusable workflow at job level
 		if p.isAssignmentAction(job.Uses) {
-			jobsWithAssignmentAction++
-			fmt.Printf("        ✅ Job uses assignment action (reusable workflow)\n")
-
 			if with := job.With; with != nil {
-                               
-				for key, value := range with {
-					fmt.Printf("          - %s: %v\n", key, value)
-				}
-
 				// Extract assignment patterns
 				if assignmentPatterns, ok := with[constants.WorkflowAssignmentRegexKey]; ok {
-					fmt.Printf("        ✅ Found assignment patterns parameter\n")
 					if assignmentStr, ok := assignmentPatterns.(string); ok {
-                                       
-						beforeCount := len(p.assignmentPattern.Patterns())
 						p.assignmentPattern.AddCommaSeparated(assignmentStr)
-						afterCount := len(p.assignmentPattern.Patterns())
-						newPatterns := afterCount - beforeCount
-						patternsExtracted += newPatterns
-						fmt.Printf("        ✅ Added %d new patterns (total now: %d)\n", newPatterns, afterCount)
-					} else {
-						fmt.Printf("        ⚠️  Assignment patterns value is not a string: %T\n", assignmentPatterns)
 					}
-				} else {
-					fmt.Printf("        ⚠️  No '%s' parameter found in job (reusable workflow)\n", constants.WorkflowAssignmentRegexKey)
 				}
-			} else {
-				fmt.Printf("        ⚠️  Job has no 'with' parameters (reusable workflow)\n")
 			}
-		} else {
-			fmt.Printf("        - Job does not use assignment action as reusable workflow, checking steps...\n")
 		}
 
 		// Case 2: Steps within job
-		if len(job.Steps) > 0 {
-                       
-		}
-		for idx, step := range job.Steps {
-			name := step.Name
-			if name == "" {
-				name = fmt.Sprintf("step-%d", idx+1)
-			}
-			fmt.Printf("          Step '%s': uses='%s'\n", name, step.Uses)
-
+		for _, step := range job.Steps {
 			if p.isAssignmentAction(step.Uses) {
-				jobsWithAssignmentAction++
-				fmt.Printf("            ✅ Step uses assignment action\n")
-
 				if with := step.With; with != nil {
-                                       
-					for key, value := range with {
-						fmt.Printf("              - %s: %v\n", key, value)
-					}
-
 					// Extract assignment patterns
 					if assignmentPatterns, ok := with[constants.WorkflowAssignmentRegexKey]; ok {
-						fmt.Printf("            ✅ Found assignment patterns parameter in step\n")
 						if assignmentStr, ok := assignmentPatterns.(string); ok {
-                                               
-							beforeCount := len(p.assignmentPattern.Patterns())
 							p.assignmentPattern.AddCommaSeparated(assignmentStr)
-							afterCount := len(p.assignmentPattern.Patterns())
-							newPatterns := afterCount - beforeCount
-							patternsExtracted += newPatterns
-							fmt.Printf("            ✅ Added %d new patterns from step (total now: %d)\n", newPatterns, afterCount)
-						} else {
-							fmt.Printf("            ⚠️  Assignment patterns value in step is not a string: %T\n", assignmentPatterns)
 						}
-					} else {
-						fmt.Printf("            ⚠️  No '%s' parameter found in step\n", constants.WorkflowAssignmentRegexKey)
 					}
-				} else {
-					fmt.Printf("            ⚠️  Step has no 'with' parameters\n")
+				}
+			}
+		}
+
+		// Case 2: Steps within job
+		for _, step := range job.Steps {
+			if p.isAssignmentAction(step.Uses) {
+				if with := step.With; with != nil {
+					// Extract assignment patterns
+					if assignmentPatterns, ok := with[constants.WorkflowAssignmentRegexKey]; ok {
+						if assignmentStr, ok := assignmentPatterns.(string); ok {
+							p.assignmentPattern.AddCommaSeparated(assignmentStr)
+						}
+					}
 				}
 			}
 		}
 	}
-
-	fmt.Printf("    📊 File parsing summary:\n")
-	fmt.Printf("      - Jobs with assignment action: %d/%d\n", jobsWithAssignmentAction, len(config.Jobs))
-	fmt.Printf("      - New patterns extracted: %d\n", patternsExtracted)
 
 	return nil
 }
