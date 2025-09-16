@@ -91,3 +91,6 @@ classDiagram
     Conn "1" --> "1" Config : uses
     Conn "1" --> "1" ConnectionState : maintains
 ```
+
+---
+<sub>*Augmented by the [Assignment Pull Request](https://github.com/majikmate/assignment-pull-request) action.*</sub>
