@@ -49,18 +49,7 @@ func (p *Processor) SparseCheckout() error {
 
 	// Print current working directory before change
 	if cwd, err := os.Getwd(); err == nil {
-		fmt.Printf("Debug: Current working directory before change: %s\n", cwd)
-	}
-
-	// change to the repository root directory
-	fmt.Printf("Debug: Change directory to repository root...\n")
-	if err := os.Chdir(p.repositoryRoot); err != nil {
-		return fmt.Errorf("failed to change directory to repository root: %w", err)
-	}
-
-	// Print current working directory after change
-	if cwd, err := os.Getwd(); err == nil {
-		fmt.Printf("Debug: Current working directory after change: %s\n", cwd)
+		fmt.Printf("Debug: Current working directory: %s\n", cwd)
 	}
 
 	// Disable sparse-checkout at the very beginning to reset state
