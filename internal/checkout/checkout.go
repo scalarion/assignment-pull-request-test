@@ -41,6 +41,16 @@ func (p *Processor) SparseCheckout() error {
 	fmt.Printf("🔍 Starting sparse-checkout configuration...\n")
 	fmt.Printf("Debug: Repository root: %s\n", p.repositoryRoot)
 
+	// Check if git is initialized
+	if _, err := os.Stat(filepath.Join(p.repositoryRoot, ".git")); os.IsNotExist(err) {
+		return fmt.Errorf("not a git repository (no .git directory found at %s)", p.repositoryRoot)
+	}
+
+	// change to the repository root directory
+	if err := os.Chdir(p.repositoryRoot); err != nil {
+		return fmt.Errorf("failed to change directory to repository root: %w", err)
+	}
+
 	// Disable sparse-checkout at the very beginning to reset state
 	fmt.Printf("Debug: Disabling existing sparse-checkout configuration...\n")
 	if err := p.gitOps.DisableSparseCheckout(); err != nil {
