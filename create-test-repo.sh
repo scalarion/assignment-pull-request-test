@@ -115,6 +115,10 @@ permissions:
   contents: write
   pull-requests: write
 
+concurrency:
+  group: ${{ github.repository }}
+  cancel-in-progress: false
+
 jobs:
   assignment-pull-request:
     name: Test Real Assignment Processing
