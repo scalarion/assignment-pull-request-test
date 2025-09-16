@@ -27,3 +27,6 @@ Here are examples of good and bad solutions:
 - Follow the workflow process
 - Ensure your solution matches the "good solution" pattern
 - Avoid patterns shown in the "bad solution" example
+
+---
+<sub>*Augmented by the [Assignment Pull Request](https://github.com/majikmate/assignment-pull-request) action.*</sub>
