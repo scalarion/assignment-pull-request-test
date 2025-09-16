@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"assignment-pull-request/internal/assignment"
@@ -39,10 +40,9 @@ func NewWithGitOps(repositoryRoot string, gitOps *git.Operations) *Processor {
 // to include all non-assignment root folders plus only the assignment folders that match the current branch
 func (p *Processor) SparseCheckout() error {
 	fmt.Printf("🔍 Starting sparse-checkout configuration...\n")
-       
 
 	// Check if git is initialized
-       
+
 	if _, err := os.Stat(filepath.Join(p.repositoryRoot, ".git")); os.IsNotExist(err) {
 		return nil
 	}
@@ -51,14 +51,14 @@ func (p *Processor) SparseCheckout() error {
 	// ...existing code...
 
 	// Disable sparse-checkout at the very beginning to reset state
-       
+
 	if err := p.gitOps.DisableSparseCheckout(); err != nil {
 		// Ignore error if sparse-checkout wasn't enabled
 		fmt.Printf("Warning: could not disable sparse-checkout (may not be enabled): %v\n", err)
 	}
 
 	// Parse workflow files to find assignment configurations
-       
+
 	workflowProcessor := workflow.New()
 	err := workflowProcessor.ParseAllFiles()
 	if err != nil {
@@ -68,7 +68,7 @@ func (p *Processor) SparseCheckout() error {
 
 	// Get pattern processors from workflow
 	assignmentPattern := workflowProcessor.AssignmentPattern()
-       
+
 	for i, pattern := range assignmentPattern.Patterns() {
 		fmt.Printf("  Pattern %d: %s\n", i+1, pattern)
 	}
@@ -80,7 +80,7 @@ func (p *Processor) SparseCheckout() error {
 	}
 
 	// Create assignment processor
-       
+
 	assignmentProcessor, err := assignment.NewProcessor(p.repositoryRoot, assignmentPattern)
 	if err != nil {
 		return fmt.Errorf("failed to create assignment processor: %w", err)
@@ -91,11 +91,10 @@ func (p *Processor) SparseCheckout() error {
 	if err != nil {
 		return fmt.Errorf("failed to get current branch: %w", err)
 	}
-       
 
 	// Get matching assignments for current branch
-       
-	assignmentPaths, err := p.getMatchingAssignments(assignmentProcessor)
+
+	assignmentPaths, err := p.getMatchingAssignments(currentBranch, assignmentProcessor)
 	if err != nil {
 		return fmt.Errorf("failed to get matching assignments: %w", err)
 	}
@@ -111,21 +110,18 @@ func (p *Processor) SparseCheckout() error {
 	}
 
 	// Scan repository root folders
-       
 	rootFolders, err := p.scanRepositoryRootFolders()
 	if err != nil {
 		return fmt.Errorf("failed to scan repository root folders: %w", err)
 	}
-       
 
 	// Get all assignments to identify which root folders contain assignments
-       
 	allAssignments, err := assignmentProcessor.ProcessAssignments()
 	if err != nil {
 		return fmt.Errorf("failed to process assignments: %w", err)
 	}
-       
 
+	// Create a map of root folders that contain assignments for quick lookup
 	assignmentRootFoldersMap := make(map[string]bool)
 	for _, assignment := range allAssignments {
 		if assignment.Path != "" {
@@ -152,7 +148,6 @@ func (p *Processor) SparseCheckout() error {
 	paths := []string{}
 
 	// Add only non-assignment root folders to the sparse-checkout paths
-       
 	for _, rootFolder := range rootFolders {
 		if !assignmentRootFoldersMap[rootFolder] {
 			paths = append(paths, rootFolder)
@@ -163,7 +158,6 @@ func (p *Processor) SparseCheckout() error {
 	}
 
 	// Add only the assignment folders that match the current branch
-       
 	for _, path := range assignmentPaths {
 		// Convert absolute path to relative path for sparse-checkout
 		relativePath, err := filepath.Rel(p.repositoryRoot, path)
@@ -175,25 +169,19 @@ func (p *Processor) SparseCheckout() error {
 		paths = append(paths, normalizedPath)
 		fmt.Printf("  + %s (matching assignment)\n", normalizedPath)
 	}
-       
 
 	// Enable sparse-checkout with cone mode for better performance
-       
 	if err := p.gitOps.InitSparseCheckoutCone(); err != nil {
 		return fmt.Errorf("failed to enable sparse-checkout with cone mode: %w", err)
 	}
 
 	// Configure sparse-checkout with the computed paths
-       
 	err = p.gitOps.SetSparseCheckoutPaths(paths)
 	if err != nil {
 		return fmt.Errorf("failed to configure sparse checkout: %w", err)
 	}
 
 	fmt.Printf("✅ Sparse checkout configured successfully for %d assignment folder(s)\n", len(assignmentPaths))
-	fmt.Printf("🎯 Repository now shows only:\n")
-	fmt.Printf("   - Root folders that don't contain assignments\n")
-	fmt.Printf("   - Specific assignment folders matching branch '%s'\n", currentBranch)
 	return nil
 }
 
@@ -203,21 +191,17 @@ func (p *Processor) getCurrentBranch() (string, error) {
 }
 
 // getMatchingAssignments returns the assignment paths that match the current branch
-func (p *Processor) getMatchingAssignments(assignmentProcessor *assignment.Processor) ([]string, error) {
-	// Get current branch
-	currentBranch, err := p.getCurrentBranch()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get current branch: %w", err)
-	}
-
+func (p *Processor) getMatchingAssignments(branch string, assignmentProcessor *assignment.Processor) ([]string, error) {
+	// Process all assignments
 	allAssignments, err := assignmentProcessor.ProcessAssignments()
 	if err != nil {
 		return nil, fmt.Errorf("failed to find assignments: %w", err)
 	}
 
+	// Filter assignments matching the current branch
 	var matchingAssignments []string
 	for _, assignmentInfo := range allAssignments {
-		if assignmentInfo.BranchName == currentBranch {
+		if assignmentInfo.BranchName == branch {
 			matchingAssignments = append(matchingAssignments, assignmentInfo.Path)
 		}
 	}
@@ -245,10 +229,5 @@ func (p *Processor) scanRepositoryRootFolders() ([]string, error) {
 
 // isFilteredFolder returns true if the folder should be filtered out from sparse-checkout
 func isFilteredFolder(folderName string) bool {
-	for _, filtered := range constants.FilteredFolders {
-		if folderName == filtered {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(constants.FilteredFolders, folderName)
 }

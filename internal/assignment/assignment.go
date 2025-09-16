@@ -71,7 +71,7 @@ func (ap *Processor) ProcessAssignments() ([]Info, error) {
 				Path:       assignment,
 				BranchName: uniqueBranchName,
 			})
-		} 
+		}
 	}
 
 	// Validate branch name uniqueness before returning
@@ -167,7 +167,7 @@ func (ap *Processor) findAssignments() ([]string, error) {
 				assignments = append(assignments, path)
 				matchedDirs++
 				break // Don't check other patterns for this path
-			} 
+			}
 		}
 
 		return nil
