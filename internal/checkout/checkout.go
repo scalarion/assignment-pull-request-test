@@ -42,13 +42,25 @@ func (p *Processor) SparseCheckout() error {
 	fmt.Printf("Debug: Repository root: %s\n", p.repositoryRoot)
 
 	// Check if git is initialized
+	fmt.Printf("Debug: Check if git is initialized...\n")
 	if _, err := os.Stat(filepath.Join(p.repositoryRoot, ".git")); os.IsNotExist(err) {
 		return nil
 	}
 
+	// Print current working directory before change
+	if cwd, err := os.Getwd(); err == nil {
+		fmt.Printf("Debug: Current working directory before change: %s\n", cwd)
+	}
+
 	// change to the repository root directory
+	fmt.Printf("Debug: Change directory to repository root...\n")
 	if err := os.Chdir(p.repositoryRoot); err != nil {
 		return fmt.Errorf("failed to change directory to repository root: %w", err)
+	}
+
+	// Print current working directory after change
+	if cwd, err := os.Getwd(); err == nil {
+		fmt.Printf("Debug: Current working directory after change: %s\n", cwd)
 	}
 
 	// Disable sparse-checkout at the very beginning to reset state
