@@ -1,10 +1,3 @@
 {
-    "name": "Assignment Pull Request Creator",
-    "image": "ghcr.io/majikmate/classroom-codespace-image:latest",
-
-    "remoteUser": "vscode",
-
-    "forwardPorts": [],
-
-    "portsAttributes": {}
+    "image": "ghcr.io/majikmate/classroom-codespace-image:latest"
 }
