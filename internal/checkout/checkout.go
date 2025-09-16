@@ -92,9 +92,14 @@ func (p *Processor) SparseCheckout() error {
 		return fmt.Errorf("failed to get current branch: %w", err)
 	}
 
-	// Get matching assignments for current branch
+	// Get all assignments to identify which root folders contain assignments
+	allAssignments, err := assignmentProcessor.ProcessAssignments()
+	if err != nil {
+		return fmt.Errorf("failed to process assignments: %w", err)
+	}
 
-	assignmentPaths, err := p.getMatchingAssignments(currentBranch, assignmentProcessor)
+	// Get matching assignments for current branch
+	assignmentPaths, err := p.getMatchingAssignments(currentBranch, allAssignments)
 	if err != nil {
 		return fmt.Errorf("failed to get matching assignments: %w", err)
 	}
@@ -113,12 +118,6 @@ func (p *Processor) SparseCheckout() error {
 	rootFolders, err := p.scanRepositoryRootFolders()
 	if err != nil {
 		return fmt.Errorf("failed to scan repository root folders: %w", err)
-	}
-
-	// Get all assignments to identify which root folders contain assignments
-	allAssignments, err := assignmentProcessor.ProcessAssignments()
-	if err != nil {
-		return fmt.Errorf("failed to process assignments: %w", err)
 	}
 
 	// Create a map of root folders that contain assignments for quick lookup
@@ -191,13 +190,7 @@ func (p *Processor) getCurrentBranch() (string, error) {
 }
 
 // getMatchingAssignments returns the assignment paths that match the current branch
-func (p *Processor) getMatchingAssignments(branch string, assignmentProcessor *assignment.Processor) ([]string, error) {
-	// Process all assignments
-	allAssignments, err := assignmentProcessor.ProcessAssignments()
-	if err != nil {
-		return nil, fmt.Errorf("failed to find assignments: %w", err)
-	}
-
+func (p *Processor) getMatchingAssignments(branch string, allAssignments []assignment.Info) ([]string, error) {
 	// Filter assignments matching the current branch
 	var matchingAssignments []string
 	for _, assignmentInfo := range allAssignments {
